@@ -17,6 +17,7 @@ AVoxelTerrain::AVoxelTerrain()
 	SetRootComponent(VoxelMesh);
 	VoxelMesh->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
 	VoxelMesh->SetMobility(EComponentMobility::Static);
+	VoxelMesh->SetRemoveSwap();
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 
@@ -37,6 +38,8 @@ void AVoxelTerrain::BeginPlay()
 void AVoxelTerrain::GenerateTerrain()
 {
 	VoxelMesh->ClearInstances();
+	InstanceIndexByGridPosition.Reset();
+	GridPositionByInstanceIndex.Reset();
 
 	TArray<FIntVector> Locations;
 	Locations.Reserve(SizeX * SizeY * NoiseAmplitude * 2);
@@ -61,28 +64,111 @@ int AVoxelTerrain::GetHeight(const int X, const int Y) const
 	return NoiseAmplitude + FMath::RoundToInt(NoiseValue * NoiseAmplitude);
 }
 
+bool AVoxelTerrain::IsVoxelMeshReady() const
+{
+	return VoxelMesh && VoxelMesh->GetStaticMesh();
+}
+
+FTransform AVoxelTerrain::MakeCubeTransform(const FIntVector& GridPosition) const
+{
+	const FVector Location(
+		static_cast<double>(GridPosition.X) * VoxelSize,
+		static_cast<double>(GridPosition.Y) * VoxelSize,
+		static_cast<double>(GridPosition.Z) * VoxelSize);
+	const FVector Scale = FVector::OneVector * (VoxelSize / 100.0f);
+
+	return FTransform(FRotator::ZeroRotator, Location, Scale);
+}
+
 void AVoxelTerrain::AddCubes(const TArray<FIntVector>& GridPositions)
 {
-	if (!VoxelMesh || !VoxelMesh->GetStaticMesh())
+	if (!IsVoxelMeshReady())
 	{
 		return;
 	}
+
 	TArray<FTransform> Transforms;
 	Transforms.Reserve(GridPositions.Num());
+	TArray<FIntVector> NewGridPositions;
+	NewGridPositions.Reserve(GridPositions.Num());
+	TSet<FIntVector> PendingGridPositions;
 
-	const FVector Scale = FVector::OneVector * (VoxelSize / 100.0f);
-	for (const auto& IntLocation : GridPositions) {
-		Transforms.Emplace(
-			FRotator::ZeroRotator,
-			FVector(
-			static_cast<double>(IntLocation.X) * VoxelSize,
-			static_cast<double>(IntLocation.Y) * VoxelSize,
-			static_cast<double>(IntLocation.Z) * VoxelSize),
-			Scale
-		);
+	for (const FIntVector& GridPosition : GridPositions)
+	{
+		if (InstanceIndexByGridPosition.Contains(GridPosition) ||
+			PendingGridPositions.Contains(GridPosition))
+		{
+			continue;
+		}
+
+		PendingGridPositions.Add(GridPosition);
+		NewGridPositions.Add(GridPosition);
+		Transforms.Emplace(MakeCubeTransform(GridPosition));
 	}		
 
-	VoxelMesh->AddInstances(Transforms,false);
+	const auto NewInstanceIndices = VoxelMesh->AddInstances(Transforms, true);
+	for (int Index = 0; Index < NewInstanceIndices.Num(); ++Index)
+	{
+		const FIntVector& GridPosition = NewGridPositions[Index];
+		const int InstanceIndex = NewInstanceIndices[Index];
+
+		InstanceIndexByGridPosition.Add(GridPosition, InstanceIndex);
+		GridPositionByInstanceIndex.Add(GridPosition);
+	}
+}
+
+bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
+{
+	if (!IsVoxelMeshReady() || InstanceIndexByGridPosition.Contains(GridPosition))
+	{
+		return false;
+	}
+
+	const int InstanceIndex = VoxelMesh->AddInstance(MakeCubeTransform(GridPosition));
+	if (InstanceIndex == INDEX_NONE)
+	{
+		return false;
+	}
+
+	InstanceIndexByGridPosition.Add(GridPosition, InstanceIndex);
+	GridPositionByInstanceIndex.Add(GridPosition);
+	return true;
+}
+
+bool AVoxelTerrain::AddCube(const FVector& GridPosition)
+{
+	return AddCube(FIntVector(
+		FMath::RoundToInt(GridPosition.X),
+		FMath::RoundToInt(GridPosition.Y),
+		FMath::RoundToInt(GridPosition.Z)));
+}
+
+bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
+{
+	const int* InstanceIndexPtr = InstanceIndexByGridPosition.Find(GridPosition);
+	if (!VoxelMesh || !InstanceIndexPtr)
+	{
+		return false;
+	}
+
+	const int InstanceIndex = *InstanceIndexPtr;
+	const int LastInstanceIndex = GridPositionByInstanceIndex.Num() - 1;
+	const FIntVector MovedGridPosition = GridPositionByInstanceIndex[LastInstanceIndex];
+
+	if (!VoxelMesh->RemoveInstance(InstanceIndex))
+	{
+		return false;
+	}
+
+	InstanceIndexByGridPosition.Remove(GridPosition);
+	GridPositionByInstanceIndex.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
+
+	if (InstanceIndex != LastInstanceIndex)
+	{
+		InstanceIndexByGridPosition[MovedGridPosition] = InstanceIndex;
+	}
+
+	return true;
 }
 
 // Called every frame

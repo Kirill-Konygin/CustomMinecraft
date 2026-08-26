@@ -24,13 +24,21 @@ protected:
 	void GenerateTerrain();
 	void AddCubes(const TArray<FIntVector>& GridPositions);
 	int GetHeight(int X, int Y) const;
+	bool IsVoxelMeshReady() const;
+	FTransform MakeCubeTransform(const FIntVector& GridPosition) const;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Voxel Terrain")
 	TObjectPtr<UInstancedStaticMeshComponent> VoxelMesh;
 
+	TMap<FIntVector, int> InstanceIndexByGridPosition;
+	TArray<FIntVector> GridPositionByInstanceIndex;
+
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+	bool AddCube(const FIntVector& GridPosition);
+	bool AddCube(const FVector& GridPosition);
+	bool RemoveCube(const FIntVector& GridPosition);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1"))
 	int SizeX = 10;
