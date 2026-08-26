@@ -40,6 +40,7 @@ public:
 	bool AddCube(const FVector& GridPosition);
 	bool RemoveCube(const FIntVector& GridPosition);
 
+protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1"))
 	int SizeX = 10;
 
