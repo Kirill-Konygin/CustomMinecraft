@@ -2,9 +2,12 @@
 
 
 #include "AVoxelTerrain.h"
+#include "CollisionQueryParams.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
+#include "Engine/EngineTypes.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/World.h"
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
 #include "String/LexFromString.h"
@@ -48,27 +51,6 @@ namespace
 		return true;
 	}
 
-	bool TryParseGridPosition(const TArray<FString>& Args, FVector& OutGridPosition)
-	{
-		if (Args.Num() != 3)
-		{
-			return false;
-		}
-
-		double X;
-		double Y;
-		double Z;
-		if (!LexTryParseString(X, *Args[0]) ||
-			!LexTryParseString(Y, *Args[1]) ||
-			!LexTryParseString(Z, *Args[2]))
-		{
-			return false;
-		}
-
-		OutGridPosition = FVector(X, Y, Z);
-		return true;
-	}
-
 	void AddCubeIntFromConsole(const TArray<FString>& Args, UWorld* World)
 	{
 		FIntVector GridPosition;
@@ -93,32 +75,6 @@ namespace
 
 		UE_LOG(LogTemp, Display, TEXT("Added cube at (%d, %d, %d)"),
 			GridPosition.X, GridPosition.Y, GridPosition.Z);
-	}
-
-	void AddCubeVectorFromConsole(const TArray<FString>& Args, UWorld* World)
-	{
-		FVector GridPosition;
-		if (!TryParseGridPosition(Args, GridPosition))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Usage: Voxel.AddCubeVector X Y Z"));
-			return;
-		}
-
-		AVoxelTerrain* Terrain = FindVoxelTerrain(World);
-		if (!Terrain)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Voxel.AddCubeVector: terrain not found"));
-			return;
-		}
-
-		if (!Terrain->AddCube(GridPosition))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Voxel.AddCubeVector: cube already exists or mesh is not ready"));
-			return;
-		}
-
-		UE_LOG(LogTemp, Display, TEXT("Added cube from vector %s"),
-			*GridPosition.ToCompactString());
 	}
 
 	void RemoveCubeFromConsole(const TArray<FString>& Args, UWorld* World)
@@ -151,11 +107,6 @@ namespace
 		TEXT("Voxel.AddCube"),
 		TEXT("Adds a cube at grid coordinates: Voxel.AddCube X Y Z"),
 		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&AddCubeIntFromConsole));
-
-	FAutoConsoleCommandWithWorldAndArgs AddCubeVectorConsoleCommand(
-		TEXT("Voxel.AddCubeVector"),
-		TEXT("Adds a cube using vector grid coordinates: Voxel.AddCubeVector X Y Z"),
-		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&AddCubeVectorFromConsole));
 
 	FAutoConsoleCommandWithWorldAndArgs RemoveCubeConsoleCommand(
 		TEXT("Voxel.RemoveCube"),
@@ -291,14 +242,6 @@ bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 	return true;
 }
 
-bool AVoxelTerrain::AddCube(const FVector& GridPosition)
-{
-	return AddCube(FIntVector(
-		FMath::RoundToInt(GridPosition.X),
-		FMath::RoundToInt(GridPosition.Y),
-		FMath::RoundToInt(GridPosition.Z)));
-}
-
 bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 {
 	const int* InstanceIndexPtr = InstanceIndexByGridPosition.Find(GridPosition);
@@ -325,6 +268,28 @@ bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 	}
 
 	return true;
+}
+
+TOptional<FVoxelHit> AVoxelTerrain::TraceVoxel(const FVector& Start, const FVector& End) const
+{
+	if (!VoxelMesh)
+	{
+		return {};
+	}
+
+	FHitResult HitResult;
+	if (	!VoxelMesh->LineTraceComponent( HitResult, Start, End, FCollisionQueryParams::DefaultQueryParam) 
+		||	!GridPositionByInstanceIndex.IsValidIndex(HitResult.Item))
+	{
+		return {};
+	}
+
+	const FVector LocalNormal = GetActorTransform().InverseTransformVectorNoScale(HitResult.ImpactNormal);
+
+	return FVoxelHit{
+		GridPositionByInstanceIndex[HitResult.Item],
+		FIntVector(FMath::RoundToInt(LocalNormal.X), FMath::RoundToInt(LocalNormal.Y), FMath::RoundToInt(LocalNormal.Z))
+	};
 }
 
 // Called every frame

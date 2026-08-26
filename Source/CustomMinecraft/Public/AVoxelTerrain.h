@@ -8,6 +8,12 @@
 
 class UInstancedStaticMeshComponent;
 
+struct FVoxelHit
+{
+	FIntVector Position = FIntVector::ZeroValue;
+	FIntVector Normal = FIntVector::ZeroValue;
+};
+
 UCLASS()
 class CUSTOMMINECRAFT_API AVoxelTerrain : public AActor
 {
@@ -37,8 +43,10 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 	bool AddCube(const FIntVector& GridPosition);
-	bool AddCube(const FVector& GridPosition);
 	bool RemoveCube(const FIntVector& GridPosition);
+	TOptional<FVoxelHit> TraceVoxel(
+		const FVector& Start,
+		const FVector& End) const;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1"))

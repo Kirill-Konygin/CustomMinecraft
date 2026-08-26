@@ -2,6 +2,7 @@
 
 
 #include "PlayerPawn.h"
+#include "AVoxelTerrain.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
@@ -10,6 +11,7 @@
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "InputMappingContext.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 APlayerPawn::APlayerPawn()
@@ -31,6 +33,12 @@ UPawnMovementComponent* APlayerPawn::GetMovementComponent() const
 void APlayerPawn::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (!VoxelTerrain)
+	{
+		VoxelTerrain = Cast<AVoxelTerrain>(
+			UGameplayStatics::GetActorOfClass(this, AVoxelTerrain::StaticClass()));
+	}
 
 	APlayerController* PlayerController = Cast<APlayerController>(GetController());
 	if (!PlayerController)
@@ -79,6 +87,16 @@ void APlayerPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	{
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayerPawn::Look);
 	}
+	if (RemoveCubeAction)
+	{
+		EnhancedInputComponent->BindAction(
+			RemoveCubeAction, ETriggerEvent::Started, this, &APlayerPawn::RemoveCube);
+	}
+	if (AddCubeAction)
+	{
+		EnhancedInputComponent->BindAction(
+			AddCubeAction, ETriggerEvent::Started, this, &APlayerPawn::AddCube);
+	}
 }
 
 void APlayerPawn::Move(const FInputActionValue& Value)
@@ -103,5 +121,50 @@ void APlayerPawn::Look(const FInputActionValue& Value)
 	const FVector2D LookValue = Value.Get<FVector2D>();
 	AddControllerYawInput(LookValue.X * LookSensitivity);
 	AddControllerPitchInput(-LookValue.Y * LookSensitivity);
+}
+
+bool APlayerPawn::GetInteractionRay(FVector& OutStart, FVector& OutEnd) const
+{
+	const APlayerController* PlayerController = Cast<APlayerController>(GetController());
+	if (!PlayerController)
+	{
+		return false;
+	}
+
+	FRotator ViewRotation;
+	PlayerController->GetPlayerViewPoint(OutStart, ViewRotation);
+	OutEnd = OutStart + ViewRotation.Vector() * InteractionDistance;
+
+	return true;
+}
+
+void APlayerPawn::AddCube()
+{
+	FVector TraceStart;
+	FVector TraceEnd;
+	if (!VoxelTerrain || !GetInteractionRay(TraceStart, TraceEnd))
+	{
+		return;
+	}
+
+	if (const TOptional<FVoxelHit> VoxelHit = VoxelTerrain->TraceVoxel(TraceStart, TraceEnd))
+	{
+		VoxelTerrain->AddCube(VoxelHit->Position + VoxelHit->Normal);
+	}
+}
+
+void APlayerPawn::RemoveCube()
+{
+	FVector TraceStart;
+	FVector TraceEnd;
+	if (!VoxelTerrain || !GetInteractionRay(TraceStart, TraceEnd))
+	{
+		return;
+	}
+
+	if (const TOptional<FVoxelHit> VoxelHit = VoxelTerrain->TraceVoxel(TraceStart, TraceEnd))
+	{
+		VoxelTerrain->RemoveCube(VoxelHit->Position);
+	}
 }
 
