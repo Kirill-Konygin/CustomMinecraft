@@ -5,7 +5,163 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
+#include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
+#include "String/LexFromString.h"
 #include "UObject/ConstructorHelpers.h"
+
+namespace
+{
+	AVoxelTerrain* FindVoxelTerrain(UWorld* World)
+	{
+		if (!World)
+		{
+			return nullptr;
+		}
+
+		for (TActorIterator<AVoxelTerrain> TerrainIt(World); TerrainIt; ++TerrainIt)
+		{
+			return *TerrainIt;
+		}
+
+		return nullptr;
+	}
+
+	bool TryParseGridPosition(const TArray<FString>& Args, FIntVector& OutGridPosition)
+	{
+		if (Args.Num() != 3)
+		{
+			return false;
+		}
+
+		int X;
+		int Y;
+		int Z;
+		if (!LexTryParseString(X, *Args[0]) ||
+			!LexTryParseString(Y, *Args[1]) ||
+			!LexTryParseString(Z, *Args[2]))
+		{
+			return false;
+		}
+
+		OutGridPosition = FIntVector(X, Y, Z);
+		return true;
+	}
+
+	bool TryParseGridPosition(const TArray<FString>& Args, FVector& OutGridPosition)
+	{
+		if (Args.Num() != 3)
+		{
+			return false;
+		}
+
+		double X;
+		double Y;
+		double Z;
+		if (!LexTryParseString(X, *Args[0]) ||
+			!LexTryParseString(Y, *Args[1]) ||
+			!LexTryParseString(Z, *Args[2]))
+		{
+			return false;
+		}
+
+		OutGridPosition = FVector(X, Y, Z);
+		return true;
+	}
+
+	void AddCubeIntFromConsole(const TArray<FString>& Args, UWorld* World)
+	{
+		FIntVector GridPosition;
+		if (!TryParseGridPosition(Args, GridPosition))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Usage: Voxel.AddCube X Y Z"));
+			return;
+		}
+
+		AVoxelTerrain* Terrain = FindVoxelTerrain(World);
+		if (!Terrain)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Voxel.AddCube: terrain not found"));
+			return;
+		}
+
+		if (!Terrain->AddCube(GridPosition))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Voxel.AddCube: cube already exists or mesh is not ready"));
+			return;
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Added cube at (%d, %d, %d)"),
+			GridPosition.X, GridPosition.Y, GridPosition.Z);
+	}
+
+	void AddCubeVectorFromConsole(const TArray<FString>& Args, UWorld* World)
+	{
+		FVector GridPosition;
+		if (!TryParseGridPosition(Args, GridPosition))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Usage: Voxel.AddCubeVector X Y Z"));
+			return;
+		}
+
+		AVoxelTerrain* Terrain = FindVoxelTerrain(World);
+		if (!Terrain)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Voxel.AddCubeVector: terrain not found"));
+			return;
+		}
+
+		if (!Terrain->AddCube(GridPosition))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Voxel.AddCubeVector: cube already exists or mesh is not ready"));
+			return;
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Added cube from vector %s"),
+			*GridPosition.ToCompactString());
+	}
+
+	void RemoveCubeFromConsole(const TArray<FString>& Args, UWorld* World)
+	{
+		FIntVector GridPosition;
+		if (!TryParseGridPosition(Args, GridPosition))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Usage: Voxel.RemoveCube X Y Z"));
+			return;
+		}
+
+		AVoxelTerrain* Terrain = FindVoxelTerrain(World);
+		if (!Terrain)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Voxel.RemoveCube: terrain not found"));
+			return;
+		}
+
+		if (!Terrain->RemoveCube(GridPosition))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Voxel.RemoveCube: cube not found"));
+			return;
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Removed cube at (%d, %d, %d)"),
+			GridPosition.X, GridPosition.Y, GridPosition.Z);
+	}
+
+	FAutoConsoleCommandWithWorldAndArgs AddCubeIntConsoleCommand(
+		TEXT("Voxel.AddCube"),
+		TEXT("Adds a cube at grid coordinates: Voxel.AddCube X Y Z"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&AddCubeIntFromConsole));
+
+	FAutoConsoleCommandWithWorldAndArgs AddCubeVectorConsoleCommand(
+		TEXT("Voxel.AddCubeVector"),
+		TEXT("Adds a cube using vector grid coordinates: Voxel.AddCubeVector X Y Z"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&AddCubeVectorFromConsole));
+
+	FAutoConsoleCommandWithWorldAndArgs RemoveCubeConsoleCommand(
+		TEXT("Voxel.RemoveCube"),
+		TEXT("Removes a cube at grid coordinates: Voxel.RemoveCube X Y Z"),
+		FConsoleCommandWithWorldAndArgsDelegate::CreateStatic(&RemoveCubeFromConsole));
+}
 
 // Sets default values
 AVoxelTerrain::AVoxelTerrain()
