@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Chunk.h"
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "AVoxelTerrain.generated.h"
@@ -28,7 +29,8 @@ protected:
 	virtual void BeginPlay() override;
 
 	void GenerateTerrain();
-	void AddCubes(const TArray<FIntVector>& GridPositions);
+	void RenderChunk();
+	void AddVoxelInstances(const TArray<FIntVector>& GridPositions);
 	int GetHeight(int X, int Y) const;
 	bool IsVoxelMeshReady() const;
 	FTransform MakeCubeTransform(const FIntVector& GridPosition) const;
@@ -38,6 +40,7 @@ protected:
 
 	TMap<FIntVector, int> InstanceIndexByGridPosition;
 	TArray<FIntVector> GridPositionByInstanceIndex;
+	TUniquePtr<FChunk> Chunk;
 
 public:	
 	// Called every frame
@@ -53,6 +56,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1"))
 	int SizeY = 10;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1"))
+	int SizeZ = 32;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1.0"))
 	float VoxelSize = 100.0f;

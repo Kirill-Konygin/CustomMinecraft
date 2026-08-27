@@ -69,7 +69,7 @@ namespace
 
 		if (!Terrain->AddCube(GridPosition))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Voxel.AddCube: cube already exists or mesh is not ready"));
+			UE_LOG(LogTemp, Warning, TEXT("Voxel.AddCube: cube already exists or is outside terrain"));
 			return;
 		}
 
@@ -144,23 +144,21 @@ void AVoxelTerrain::BeginPlay()
 
 void AVoxelTerrain::GenerateTerrain()
 {
-	VoxelMesh->ClearInstances();
-	InstanceIndexByGridPosition.Reset();
-	GridPositionByInstanceIndex.Reset();
+	Chunk = MakeUnique<FChunk>(FIntVector(SizeX, SizeY, SizeZ));
 
-	TArray<FIntVector> Locations;
-	Locations.Reserve(SizeX * SizeY * NoiseAmplitude * 2);
 	for (int X = 0; X < SizeX; ++X)
 	{
 		for (int Y = 0; Y < SizeY; ++Y)
 		{
-			const int Height = GetHeight(X, Y);
-			for (int Z = 0; Z < Height; ++Z) {
-				Locations.Emplace(X, Y, Z);
-			}		
+			const int Height = FMath::Clamp(GetHeight(X, Y), 0, SizeZ);
+			for (int Z = 0; Z < Height; ++Z)
+			{
+				Chunk->SetVoxel(FIntVector(X, Y, Z), true);
+			}
 		}
 	}
-	AddCubes(Locations);
+
+	RenderChunk();
 }
 
 int AVoxelTerrain::GetHeight(const int X, const int Y) const
@@ -187,7 +185,22 @@ FTransform AVoxelTerrain::MakeCubeTransform(const FIntVector& GridPosition) cons
 	return FTransform(FRotator::ZeroRotator, Location, Scale);
 }
 
-void AVoxelTerrain::AddCubes(const TArray<FIntVector>& GridPositions)
+void AVoxelTerrain::RenderChunk()
+{
+	if (!IsVoxelMeshReady() || !Chunk)
+	{
+		return;
+	}
+
+	VoxelMesh->ClearInstances();
+	InstanceIndexByGridPosition.Reset();
+	GridPositionByInstanceIndex.Reset();
+
+	const TArray<FIntVector> GridPositions = Chunk->GetVoxelLocalPositions();
+	AddVoxelInstances(GridPositions);
+}
+
+void AVoxelTerrain::AddVoxelInstances(const TArray<FIntVector>& GridPositions)
 {
 	if (!IsVoxelMeshReady())
 	{
@@ -214,19 +227,24 @@ void AVoxelTerrain::AddCubes(const TArray<FIntVector>& GridPositions)
 	}		
 
 	const auto NewInstanceIndices = VoxelMesh->AddInstances(Transforms, true);
+	GridPositionByInstanceIndex.SetNum(VoxelMesh->GetInstanceCount());
 	for (int Index = 0; Index < NewInstanceIndices.Num(); ++Index)
 	{
 		const FIntVector& GridPosition = NewGridPositions[Index];
 		const int InstanceIndex = NewInstanceIndices[Index];
+		if (!GridPositionByInstanceIndex.IsValidIndex(InstanceIndex))
+		{
+			continue;
+		}
 
 		InstanceIndexByGridPosition.Add(GridPosition, InstanceIndex);
-		GridPositionByInstanceIndex.Add(GridPosition);
+		GridPositionByInstanceIndex[InstanceIndex] = GridPosition;
 	}
 }
 
 bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 {
-	if (!IsVoxelMeshReady() || InstanceIndexByGridPosition.Contains(GridPosition))
+	if (!Chunk || !Chunk->SetVoxel(GridPosition, true))
 	{
 		return false;
 	}
@@ -244,6 +262,11 @@ bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 
 bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 {
+	if (!Chunk || !Chunk->SetVoxel(GridPosition, false))
+	{
+		return false;
+	}
+
 	const int* InstanceIndexPtr = InstanceIndexByGridPosition.Find(GridPosition);
 	if (!VoxelMesh || !InstanceIndexPtr)
 	{
