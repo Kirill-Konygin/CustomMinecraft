@@ -127,7 +127,7 @@ void APlayerPawn::Look(const FInputActionValue& Value)
 {
 	const FVector2D LookValue = Value.Get<FVector2D>();
 	AddControllerYawInput(LookValue.X * LookSensitivity);
-	AddControllerPitchInput(-LookValue.Y * LookSensitivity);
+	AddControllerPitchInput(LookValue.Y * LookSensitivity);
 }
 
 bool APlayerPawn::GetInteractionRay(FVector& OutStart, FVector& OutEnd) const
