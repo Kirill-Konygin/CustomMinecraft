@@ -270,6 +270,19 @@ bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 	return true;
 }
 
+bool AVoxelTerrain::DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, const float SphereRadius) const
+{
+	if (!IsVoxelMeshReady())
+	{
+		return false;
+	}
+
+	const FTransform CubeWorldTransform = MakeCubeTransform(GridPosition) * GetActorTransform();
+	const FBox CubeBounds = VoxelMesh->GetStaticMesh()->GetBoundingBox().TransformBy(CubeWorldTransform);
+
+	return FMath::SphereAABBIntersection( SphereCenter, FMath::Square(static_cast<double>(SphereRadius)), CubeBounds);
+}
+
 TOptional<FVoxelHit> AVoxelTerrain::TraceVoxel(const FVector& Start, const FVector& End) const
 {
 	if (!VoxelMesh)
@@ -298,4 +311,3 @@ void AVoxelTerrain::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 }
-

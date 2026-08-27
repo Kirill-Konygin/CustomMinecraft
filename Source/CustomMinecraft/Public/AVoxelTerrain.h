@@ -44,9 +44,8 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	bool AddCube(const FIntVector& GridPosition);
 	bool RemoveCube(const FIntVector& GridPosition);
-	TOptional<FVoxelHit> TraceVoxel(
-		const FVector& Start,
-		const FVector& End) const;
+	bool DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, float SphereRadius) const;
+	TOptional<FVoxelHit> TraceVoxel(const FVector& Start, const FVector& End) const;
 
 protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1"))

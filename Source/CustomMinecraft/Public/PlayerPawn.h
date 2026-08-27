@@ -11,6 +11,7 @@ class UFloatingPawnMovement;
 class UInputAction;
 class UInputMappingContext;
 class UPawnMovementComponent;
+class USphereComponent;
 struct FInputActionValue;
 
 UCLASS()
@@ -35,6 +36,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player|Components")
 	TObjectPtr<UFloatingPawnMovement> MovementComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player|Components")
+	TObjectPtr<USphereComponent> CollisionSphere;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Player|Input", meta = (ClampMin = "0.0"))
 	float LookSensitivity = 1.0f;

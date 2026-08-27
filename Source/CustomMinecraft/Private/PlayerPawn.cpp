@@ -3,8 +3,10 @@
 
 #include "PlayerPawn.h"
 #include "AVoxelTerrain.h"
+#include "Components/SphereComponent.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Engine/CollisionProfile.h"
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/FloatingPawnMovement.h"
 #include "GameFramework/PlayerController.h"
@@ -16,8 +18,13 @@
 // Sets default values
 APlayerPawn::APlayerPawn()
 {
- 	// Set this pawn to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this pawn to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+
+	CollisionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
+	SetRootComponent(CollisionSphere);
+	CollisionSphere->InitSphereRadius(50.0f);
+	CollisionSphere->SetCollisionProfileName(UCollisionProfile::Pawn_ProfileName);
 
 	MovementComponent = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("MovementComponent"));
 
@@ -149,7 +156,11 @@ void APlayerPawn::AddCube()
 
 	if (const TOptional<FVoxelHit> VoxelHit = VoxelTerrain->TraceVoxel(TraceStart, TraceEnd))
 	{
-		VoxelTerrain->AddCube(VoxelHit->Position + VoxelHit->Normal);
+		const FIntVector GridPosition = VoxelHit->Position + VoxelHit->Normal;
+		if (!VoxelTerrain->DoesCubeOverlapSphere(GridPosition, CollisionSphere->GetComponentLocation(), CollisionSphere->GetScaledSphereRadius()))
+		{
+			VoxelTerrain->AddCube(GridPosition);
+		}
 	}
 }
 
