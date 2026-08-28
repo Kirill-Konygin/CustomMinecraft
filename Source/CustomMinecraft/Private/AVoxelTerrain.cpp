@@ -4,7 +4,9 @@
 #include "AVoxelTerrain.h"
 #include "CollisionQueryParams.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "CubeDefinition.h"
 #include "Engine/CollisionProfile.h"
+#include "Engine/DataTable.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -139,7 +141,45 @@ void AVoxelTerrain::BeginPlay()
 {
 	Super::BeginPlay();
 
+	ApplyCubeMaterials();
 	GenerateTerrain();
+}
+
+void AVoxelTerrain::ApplyCubeMaterials()
+{
+	if (!CubeDefinitions)
+	{
+		UE_LOG(LogTemp, Warning,TEXT("Voxel terrain has no cube definitions DataTable selected"));
+		return;
+	}
+
+	const TArray<FName> RowNames = CubeDefinitions->GetRowNames();
+	if (RowNames.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning,TEXT("Cube definitions DataTable contains no rows"));
+		return;
+	}
+
+	const FName FirstRowName = RowNames[0];
+	const FCubeDefinition* CubeDefinition = CubeDefinitions->FindRow<FCubeDefinition>(FirstRowName,TEXT("AVoxelTerrain::ApplyCubeMaterials"));
+
+	if (!CubeDefinition)
+	{
+		return;
+	}
+
+	if (!CubeDefinition->Material)
+	{
+		UE_LOG(LogTemp, Warning,TEXT("Cube definition '%s' has no material"),*FirstRowName.ToString());
+		return;
+	}
+
+	if (!VoxelMesh)
+	{
+		return;
+	}
+
+	VoxelMesh->SetMaterial(0, CubeDefinition->Material);
 }
 
 void AVoxelTerrain::GenerateTerrain()

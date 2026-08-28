@@ -7,6 +7,7 @@
 #include "GameFramework/Actor.h"
 #include "AVoxelTerrain.generated.h"
 
+class UDataTable;
 class UInstancedStaticMeshComponent;
 
 struct FVoxelHit
@@ -31,12 +32,16 @@ protected:
 	void GenerateTerrain();
 	void RenderChunk();
 	void AddVoxelInstances(const TArray<FIntVector>& GridPositions);
+	void ApplyCubeMaterials();
 	int GetHeight(int X, int Y) const;
 	bool IsVoxelMeshReady() const;
 	FTransform MakeCubeTransform(const FIntVector& GridPosition) const;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Voxel Terrain")
 	TObjectPtr<UInstancedStaticMeshComponent> VoxelMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voxel Terrain|Cube Definitions")
+	TObjectPtr<UDataTable> CubeDefinitions;
 
 	TMap<FIntVector, int> InstanceIndexByGridPosition;
 	TArray<FIntVector> GridPositionByInstanceIndex;
