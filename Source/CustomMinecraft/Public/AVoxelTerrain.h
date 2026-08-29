@@ -5,10 +5,11 @@
 #include "Chunk.h"
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "VoxelInstanceManager.h"
 #include "AVoxelTerrain.generated.h"
 
 class UDataTable;
-class UInstancedStaticMeshComponent;
+class USceneComponent;
 
 struct FVoxelHit
 {
@@ -31,20 +32,18 @@ protected:
 
 	void GenerateTerrain();
 	void RenderChunk();
-	void AddVoxelInstances(const TArray<FIntVector>& GridPositions);
-	void ApplyCubeMaterials();
+	void InitializeVoxelInstances();
 	int GetHeight(int X, int Y) const;
-	bool IsVoxelMeshReady() const;
-	FTransform MakeCubeTransform(const FIntVector& GridPosition) const;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Voxel Terrain")
-	TObjectPtr<UInstancedStaticMeshComponent> VoxelMesh;
+	TObjectPtr<USceneComponent> SceneRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Voxel Terrain")
+	TObjectPtr<UVoxelInstanceManager> VoxelInstanceManager;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voxel Terrain|Cube Definitions")
 	TObjectPtr<UDataTable> CubeDefinitions;
 
-	TMap<FIntVector, int> InstanceIndexByGridPosition;
-	TArray<FIntVector> GridPositionByInstanceIndex;
 	TUniquePtr<FChunk> Chunk;
 
 public:	

@@ -2,18 +2,14 @@
 
 
 #include "AVoxelTerrain.h"
-#include "CollisionQueryParams.h"
-#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/SceneComponent.h"
 #include "CubeDefinition.h"
-#include "Engine/CollisionProfile.h"
 #include "Engine/DataTable.h"
-#include "Engine/EngineTypes.h"
-#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
 #include "String/LexFromString.h"
-#include "UObject/ConstructorHelpers.h"
+#include "VoxelInstanceManager.h"
 
 namespace
 {
@@ -122,18 +118,10 @@ AVoxelTerrain::AVoxelTerrain()
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = false;
 
-	VoxelMesh = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("VoxelMesh"));
-	SetRootComponent(VoxelMesh);
-	VoxelMesh->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
-	VoxelMesh->SetMobility(EComponentMobility::Static);
-	VoxelMesh->SetRemoveSwap();
-
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
-
-	if (CubeMesh.Succeeded())
-	{
-		VoxelMesh->SetStaticMesh(CubeMesh.Object);
-	}
+	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
+	SceneRoot->SetMobility(EComponentMobility::Static);
+	SetRootComponent(SceneRoot);
+	VoxelInstanceManager = CreateDefaultSubobject<UVoxelInstanceManager>(TEXT("VoxelInstanceManager"));
 }
 
 // Called when the game starts or when spawned
@@ -141,11 +129,11 @@ void AVoxelTerrain::BeginPlay()
 {
 	Super::BeginPlay();
 
-	ApplyCubeMaterials();
+	InitializeVoxelInstances();
 	GenerateTerrain();
 }
 
-void AVoxelTerrain::ApplyCubeMaterials()
+void AVoxelTerrain::InitializeVoxelInstances()
 {
 	if (!CubeDefinitions)
 	{
@@ -161,9 +149,8 @@ void AVoxelTerrain::ApplyCubeMaterials()
 	}
 
 	const FName FirstRowName = RowNames[0];
-	const FCubeDefinition* CubeDefinition = CubeDefinitions->FindRow<FCubeDefinition>(FirstRowName,TEXT("AVoxelTerrain::ApplyCubeMaterials"));
-
-	if (!CubeDefinition)
+	const FCubeDefinition* CubeDefinition = CubeDefinitions->FindRow<FCubeDefinition>(FirstRowName,TEXT("AVoxelTerrain::InitializeVoxelInstances"));
+	if (!CubeDefinition || !VoxelInstanceManager)
 	{
 		return;
 	}
@@ -171,15 +158,9 @@ void AVoxelTerrain::ApplyCubeMaterials()
 	if (!CubeDefinition->Material)
 	{
 		UE_LOG(LogTemp, Warning,TEXT("Cube definition '%s' has no material"),*FirstRowName.ToString());
-		return;
 	}
 
-	if (!VoxelMesh)
-	{
-		return;
-	}
-
-	VoxelMesh->SetMaterial(0, CubeDefinition->Material);
+	VoxelInstanceManager->Initialize(*CubeDefinition, VoxelSize);
 }
 
 void AVoxelTerrain::GenerateTerrain()
@@ -209,163 +190,57 @@ int AVoxelTerrain::GetHeight(const int X, const int Y) const
 	return NoiseAmplitude + FMath::RoundToInt(NoiseValue * NoiseAmplitude);
 }
 
-bool AVoxelTerrain::IsVoxelMeshReady() const
-{
-	return VoxelMesh && VoxelMesh->GetStaticMesh();
-}
-
-FTransform AVoxelTerrain::MakeCubeTransform(const FIntVector& GridPosition) const
-{
-	const FVector Location(
-		static_cast<double>(GridPosition.X) * VoxelSize,
-		static_cast<double>(GridPosition.Y) * VoxelSize,
-		static_cast<double>(GridPosition.Z) * VoxelSize);
-	const FVector Scale = FVector::OneVector * (VoxelSize / 100.0f);
-
-	return FTransform(FRotator::ZeroRotator, Location, Scale);
-}
-
 void AVoxelTerrain::RenderChunk()
 {
-	if (!IsVoxelMeshReady() || !Chunk)
+	if (!VoxelInstanceManager || !Chunk)
 	{
 		return;
 	}
 
-	VoxelMesh->ClearInstances();
-	InstanceIndexByGridPosition.Reset();
-	GridPositionByInstanceIndex.Reset();
-
-	const TArray<FIntVector> GridPositions = Chunk->GetVoxelLocalPositions();
-	AddVoxelInstances(GridPositions);
-}
-
-void AVoxelTerrain::AddVoxelInstances(const TArray<FIntVector>& GridPositions)
-{
-	if (!IsVoxelMeshReady())
-	{
-		return;
-	}
-
-	TArray<FTransform> Transforms;
-	Transforms.Reserve(GridPositions.Num());
-	TArray<FIntVector> NewGridPositions;
-	NewGridPositions.Reserve(GridPositions.Num());
-	TSet<FIntVector> PendingGridPositions;
-
-	for (const FIntVector& GridPosition : GridPositions)
-	{
-		if (InstanceIndexByGridPosition.Contains(GridPosition) ||
-			PendingGridPositions.Contains(GridPosition))
-		{
-			continue;
-		}
-
-		PendingGridPositions.Add(GridPosition);
-		NewGridPositions.Add(GridPosition);
-		Transforms.Emplace(MakeCubeTransform(GridPosition));
-	}		
-
-	const auto NewInstanceIndices = VoxelMesh->AddInstances(Transforms, true);
-	GridPositionByInstanceIndex.SetNum(VoxelMesh->GetInstanceCount());
-	for (int Index = 0; Index < NewInstanceIndices.Num(); ++Index)
-	{
-		const FIntVector& GridPosition = NewGridPositions[Index];
-		const int InstanceIndex = NewInstanceIndices[Index];
-		if (!GridPositionByInstanceIndex.IsValidIndex(InstanceIndex))
-		{
-			continue;
-		}
-
-		InstanceIndexByGridPosition.Add(GridPosition, InstanceIndex);
-		GridPositionByInstanceIndex[InstanceIndex] = GridPosition;
-	}
+	VoxelInstanceManager->SetCubes(Chunk->GetVoxelLocalPositions());
 }
 
 bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 {
-	if (!Chunk || !Chunk->SetVoxel(GridPosition, true))
+	if (!Chunk || !VoxelInstanceManager || !Chunk->SetVoxel(GridPosition, true))
 	{
 		return false;
 	}
 
-	const int InstanceIndex = VoxelMesh->AddInstance(MakeCubeTransform(GridPosition));
-	if (InstanceIndex == INDEX_NONE)
-	{
-		return false;
-	}
-
-	InstanceIndexByGridPosition.Add(GridPosition, InstanceIndex);
-	GridPositionByInstanceIndex.Add(GridPosition);
+	VoxelInstanceManager->SetCubes(Chunk->GetVoxelLocalPositions());
 	return true;
 }
 
 bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 {
-	if (!Chunk || !Chunk->SetVoxel(GridPosition, false))
+	if (!Chunk || !VoxelInstanceManager || !Chunk->SetVoxel(GridPosition, false))
 	{
 		return false;
 	}
 
-	const int* InstanceIndexPtr = InstanceIndexByGridPosition.Find(GridPosition);
-	if (!VoxelMesh || !InstanceIndexPtr)
-	{
-		return false;
-	}
-
-	const int InstanceIndex = *InstanceIndexPtr;
-	const int LastInstanceIndex = GridPositionByInstanceIndex.Num() - 1;
-	const FIntVector MovedGridPosition = GridPositionByInstanceIndex[LastInstanceIndex];
-
-	if (!VoxelMesh->RemoveInstance(InstanceIndex))
-	{
-		return false;
-	}
-
-	InstanceIndexByGridPosition.Remove(GridPosition);
-	GridPositionByInstanceIndex.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
-
-	if (InstanceIndex != LastInstanceIndex)
-	{
-		InstanceIndexByGridPosition[MovedGridPosition] = InstanceIndex;
-	}
-
+	VoxelInstanceManager->SetCubes(Chunk->GetVoxelLocalPositions());
 	return true;
 }
 
 bool AVoxelTerrain::DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, const float SphereRadius) const
 {
-	if (!IsVoxelMeshReady())
-	{
-		return false;
-	}
-
-	const FTransform CubeWorldTransform = MakeCubeTransform(GridPosition) * GetActorTransform();
-	const FBox CubeBounds = VoxelMesh->GetStaticMesh()->GetBoundingBox().TransformBy(CubeWorldTransform);
-
-	return FMath::SphereAABBIntersection( SphereCenter, FMath::Square(static_cast<double>(SphereRadius)), CubeBounds);
+	return VoxelInstanceManager && VoxelInstanceManager->DoesCubeOverlapSphere(GridPosition, SphereCenter, SphereRadius);
 }
 
 TOptional<FVoxelHit> AVoxelTerrain::TraceVoxel(const FVector& Start, const FVector& End) const
 {
-	if (!VoxelMesh)
+	if (!VoxelInstanceManager)
 	{
 		return {};
 	}
 
-	FHitResult HitResult;
-	if (	!VoxelMesh->LineTraceComponent( HitResult, Start, End, FCollisionQueryParams::DefaultQueryParam) 
-		||	!GridPositionByInstanceIndex.IsValidIndex(HitResult.Item))
+	const TOptional<FVoxelInstanceHit> Hit = VoxelInstanceManager->TraceVoxel(Start, End);
+	if (!Hit)
 	{
 		return {};
 	}
 
-	const FVector LocalNormal = GetActorTransform().InverseTransformVectorNoScale(HitResult.ImpactNormal);
-
-	return FVoxelHit{
-		GridPositionByInstanceIndex[HitResult.Item],
-		FIntVector(FMath::RoundToInt(LocalNormal.X), FMath::RoundToInt(LocalNormal.Y), FMath::RoundToInt(LocalNormal.Z))
-	};
+	return FVoxelHit{Hit->Position, Hit->Normal};
 }
 
 // Called every frame
