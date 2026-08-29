@@ -12,6 +12,7 @@ struct FVoxelInstanceHit
 {
 	FIntVector Position = FIntVector::ZeroValue;
 	FIntVector Normal = FIntVector::ZeroValue;
+	float Distance = 0.0f;
 };
 
 UCLASS(ClassGroup = (Voxel), meta = (BlueprintSpawnableComponent))

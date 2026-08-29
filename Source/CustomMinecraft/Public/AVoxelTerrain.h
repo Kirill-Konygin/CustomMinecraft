@@ -34,12 +34,13 @@ protected:
 	void RenderChunk();
 	void InitializeVoxelInstances();
 	int GetHeight(int X, int Y) const;
+	FName GetCubeTypeByHeight(const TArray<FName>& RowNames, int height);
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Voxel Terrain")
 	TObjectPtr<USceneComponent> SceneRoot;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Voxel Terrain")
-	TObjectPtr<UVoxelInstanceManager> VoxelInstanceManager;
+	UPROPERTY()
+	TMap<FName, TObjectPtr<UVoxelInstanceManager>> VoxelInstanceManagers;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voxel Terrain|Cube Definitions")
 	TObjectPtr<UDataTable> CubeDefinitions;

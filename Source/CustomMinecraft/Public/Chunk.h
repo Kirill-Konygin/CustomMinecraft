@@ -17,6 +17,7 @@ public:
 	bool RemoveVoxel(const FIntVector& LocalPosition);
 
 	TArray<FIntVector> GetVoxelLocalPositions() const;
+	TArray<FIntVector> GetVoxelLocalPositions(FName CubeId) const;
 
 private:
 	using FPaletteIndex = uint16;

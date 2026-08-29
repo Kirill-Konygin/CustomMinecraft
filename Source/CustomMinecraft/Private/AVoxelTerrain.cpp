@@ -121,7 +121,6 @@ AVoxelTerrain::AVoxelTerrain()
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SceneRoot->SetMobility(EComponentMobility::Static);
 	SetRootComponent(SceneRoot);
-	VoxelInstanceManager = CreateDefaultSubobject<UVoxelInstanceManager>(TEXT("VoxelInstanceManager"));
 }
 
 // Called when the game starts or when spawned
@@ -135,6 +134,8 @@ void AVoxelTerrain::BeginPlay()
 
 void AVoxelTerrain::InitializeVoxelInstances()
 {
+	VoxelInstanceManagers.Reset();
+
 	if (!CubeDefinitions)
 	{
 		UE_LOG(LogTemp, Warning,TEXT("Voxel terrain has no cube definitions DataTable selected"));
@@ -148,19 +149,30 @@ void AVoxelTerrain::InitializeVoxelInstances()
 		return;
 	}
 
-	const FName FirstRowName = RowNames[0];
-	const FCubeDefinition* CubeDefinition = CubeDefinitions->FindRow<FCubeDefinition>(FirstRowName,TEXT("AVoxelTerrain::InitializeVoxelInstances"));
-	if (!CubeDefinition || !VoxelInstanceManager)
+	for (const FName RowName : RowNames)
 	{
-		return;
-	}
+		const FCubeDefinition* CubeDefinition = CubeDefinitions->FindRow<FCubeDefinition>(RowName,TEXT("AVoxelTerrain::InitializeVoxelInstances"));
+		if (!CubeDefinition)
+		{
+			continue;
+		}
 
-	if (!CubeDefinition->Material)
-	{
-		UE_LOG(LogTemp, Warning,TEXT("Cube definition '%s' has no material"),*FirstRowName.ToString());
-	}
+		UVoxelInstanceManager* InstanceManager = NewObject<UVoxelInstanceManager>(this);
+		if (!InstanceManager)
+		{
+			continue;
+		}
+		AddInstanceComponent(InstanceManager);
+		InstanceManager->RegisterComponent();
 
-	VoxelInstanceManager->Initialize(*CubeDefinition, VoxelSize);
+		if (!CubeDefinition->Material)
+		{
+			UE_LOG(LogTemp, Warning,TEXT("Cube definition '%s' has no material"),*RowName.ToString());
+		}
+
+		InstanceManager->Initialize(*CubeDefinition, VoxelSize);
+		VoxelInstanceManagers.Add(RowName, InstanceManager);
+	}
 }
 
 void AVoxelTerrain::GenerateTerrain()
@@ -179,8 +191,6 @@ void AVoxelTerrain::GenerateTerrain()
 		return;
 	}
 
-	const FName CubeType = RowNames[0];
-
 	for (int X = 0; X < SizeX; ++X)
 	{
 		for (int Y = 0; Y < SizeY; ++Y)
@@ -188,7 +198,7 @@ void AVoxelTerrain::GenerateTerrain()
 			const int Height = FMath::Clamp(GetHeight(X, Y), 0, SizeZ);
 			for (int Z = 0; Z < Height; ++Z)
 			{
-				Chunk->SetVoxel(FIntVector(X, Y, Z), CubeType);
+				Chunk->SetVoxel(FIntVector(X, Y, Z), GetCubeTypeByHeight(RowNames,Z));
 			}
 		}
 	}
@@ -204,63 +214,86 @@ int AVoxelTerrain::GetHeight(const int X, const int Y) const
 	return NoiseAmplitude + FMath::RoundToInt(NoiseValue * NoiseAmplitude);
 }
 
+FName AVoxelTerrain::GetCubeTypeByHeight(const TArray<FName>& RowNames, int height)
+{
+	return height > 5 ? RowNames[0] : RowNames[1];
+}
+
 void AVoxelTerrain::RenderChunk()
 {
-	if (!VoxelInstanceManager || !Chunk)
+	if (!Chunk)
 	{
 		return;
 	}
 
-	VoxelInstanceManager->SetCubes(Chunk->GetVoxelLocalPositions());
+	for (const auto& [Name, ManagerPtr] : VoxelInstanceManagers)
+	{
+		if (ManagerPtr)
+		{
+			ManagerPtr->SetCubes(Chunk->GetVoxelLocalPositions(Name));
+		}
+	}
 }
 
 bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 {
-	if (!Chunk || !VoxelInstanceManager || !CubeDefinitions)
+	if (!Chunk || VoxelInstanceManagers.IsEmpty() || !CubeDefinitions)
 	{
 		return false;
 	}
 
 	const TArray<FName> RowNames = CubeDefinitions->GetRowNames();
-	if (RowNames.IsEmpty() || !Chunk->SetVoxel(GridPosition, RowNames[0]))
+	if (RowNames.IsEmpty() || !Chunk->SetVoxel(GridPosition, GetCubeTypeByHeight(RowNames, GridPosition.Z)))
 	{
 		return false;
 	}
 
-	VoxelInstanceManager->SetCubes(Chunk->GetVoxelLocalPositions());
+	RenderChunk();
 	return true;
 }
 
 bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 {
-	if (!Chunk || !VoxelInstanceManager || !Chunk->RemoveVoxel(GridPosition))
+	if (!Chunk || VoxelInstanceManagers.IsEmpty() || !Chunk->RemoveVoxel(GridPosition))
 	{
 		return false;
 	}
 
-	VoxelInstanceManager->SetCubes(Chunk->GetVoxelLocalPositions());
+	RenderChunk();
 	return true;
 }
 
 bool AVoxelTerrain::DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, const float SphereRadius) const
 {
-	return VoxelInstanceManager && VoxelInstanceManager->DoesCubeOverlapSphere(GridPosition, SphereCenter, SphereRadius);
+	for (const auto& [Name, ManagerPtr] : VoxelInstanceManagers)
+	{
+		if (ManagerPtr)
+		{
+			return ManagerPtr->DoesCubeOverlapSphere(GridPosition, SphereCenter, SphereRadius);
+		}
+	}
+
+	return false;
 }
 
 TOptional<FVoxelHit> AVoxelTerrain::TraceVoxel(const FVector& Start, const FVector& End) const
 {
-	if (!VoxelInstanceManager)
+	TOptional<FVoxelInstanceHit> ClosestHit;
+	for (const auto& [Name, ManagerPtr] : VoxelInstanceManagers)
 	{
-		return {};
+		if (!ManagerPtr)
+		{
+			continue;
+		}
+
+		const TOptional<FVoxelInstanceHit> Hit = ManagerPtr->TraceVoxel(Start, End);
+		if (Hit && (!ClosestHit || Hit->Distance < ClosestHit->Distance))
+		{
+			ClosestHit = Hit;
+		}
 	}
 
-	const TOptional<FVoxelInstanceHit> Hit = VoxelInstanceManager->TraceVoxel(Start, End);
-	if (!Hit)
-	{
-		return {};
-	}
-
-	return FVoxelHit{Hit->Position, Hit->Normal};
+	return ClosestHit ? TOptional<FVoxelHit>(FVoxelHit{ClosestHit->Position, ClosestHit->Normal}) : TOptional<FVoxelHit>();
 }
 
 // Called every frame

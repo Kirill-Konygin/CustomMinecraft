@@ -84,6 +84,26 @@ TArray<FIntVector> FChunk::GetVoxelLocalPositions() const
 	return LocalPositions;
 }
 
+TArray<FIntVector> FChunk::GetVoxelLocalPositions(const FName CubeId) const
+{
+	TArray<FIntVector> LocalPositions;
+	const FPaletteIndex* PaletteIndex = PaletteIndexByCubeId.Find(CubeId);
+	if (!PaletteIndex)
+	{
+		return LocalPositions;
+	}
+
+	for (int32 Index = 0; Index < Voxels.Num(); ++Index)
+	{
+		if (Voxels[Index] == *PaletteIndex)
+		{
+			LocalPositions.Add(GetLocalPosition(Index));
+		}
+	}
+
+	return LocalPositions;
+}
+
 int32 FChunk::GetVoxelIndex(const FIntVector& LocalPosition) const
 {
 	return LocalPosition.X + Size.X * (LocalPosition.Y + Size.Y * LocalPosition.Z);

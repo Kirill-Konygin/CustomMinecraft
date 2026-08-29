@@ -123,11 +123,11 @@ void UVoxelInstanceManager::SetCubes(const TConstArrayView<FIntVector> GridPosit
 
 	TArray<FIntVector> GridPositionsToRemove;
 	GridPositionsToRemove.Reserve(InstanceIndexByGridPosition.Num());
-	for (const TPair<FIntVector, int32>& InstancePair : InstanceIndexByGridPosition)
+	for (const auto& [GridPosition, InstanceIndex] : InstanceIndexByGridPosition)
 	{
-		if (!DesiredGridPositions.Contains(InstancePair.Key))
+		if (!DesiredGridPositions.Contains(GridPosition))
 		{
-			GridPositionsToRemove.Add(InstancePair.Key);
+			GridPositionsToRemove.Add(GridPosition);
 		}
 	}
 
@@ -229,7 +229,8 @@ TOptional<FVoxelInstanceHit> UVoxelInstanceManager::TraceVoxel(const FVector& St
 	const FVector LocalNormal = VoxelMesh->GetComponentTransform().InverseTransformVectorNoScale(HitResult.ImpactNormal);
 
 	return FVoxelInstanceHit{	GridPositionByInstanceIndex[HitResult.Item],	FIntVector( FMath::RoundToInt(LocalNormal.X),
-								FMath::RoundToInt(LocalNormal.Y),				FMath::RoundToInt(LocalNormal.Z))};
+								FMath::RoundToInt(LocalNormal.Y),				FMath::RoundToInt(LocalNormal.Z)),
+								HitResult.Distance};
 }
 
 FTransform UVoxelInstanceManager::MakeCubeTransform(const FIntVector& GridPosition) const
