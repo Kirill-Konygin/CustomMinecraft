@@ -4,7 +4,7 @@ FChunk::FChunk(const FIntVector& InSize)
 	: Size(InSize)
 {
 	check(Size.X > 0 && Size.Y > 0 && Size.Z > 0);
-	Voxels.Init(false, Size.X * Size.Y * Size.Z);
+	Voxels.Init(EmptyPaletteIndex, Size.X * Size.Y * Size.Z);
 }
 
 FIntVector FChunk::GetLocalPosition(const int32 Index) const
@@ -27,10 +27,26 @@ bool FChunk::IsValidLocalPosition(const FIntVector& LocalPosition) const
 
 bool FChunk::HasVoxel(const FIntVector& LocalPosition) const
 {
-	return IsValidLocalPosition(LocalPosition) && Voxels[GetVoxelIndex(LocalPosition)];
+	return GetVoxelPaletteIndex(LocalPosition) != EmptyPaletteIndex;
 }
 
-bool FChunk::SetVoxel(const FIntVector& LocalPosition, const bool bIsSolid)
+TOptional<FName> FChunk::GetVoxelType(const FIntVector& LocalPosition) const
+{
+	const FPaletteIndex PaletteIndex = GetVoxelPaletteIndex(LocalPosition);
+	if (PaletteIndex == EmptyPaletteIndex || !Palette.IsValidIndex(PaletteIndex))
+	{
+		return {};
+	}
+
+	return Palette[PaletteIndex];
+}
+
+FChunk::FPaletteIndex FChunk::GetVoxelPaletteIndex(const FIntVector& LocalPosition) const
+{
+	return IsValidLocalPosition(LocalPosition) ? Voxels[GetVoxelIndex(LocalPosition)] : EmptyPaletteIndex;
+}
+
+bool FChunk::SetVoxel(const FIntVector& LocalPosition, const FName CubeId)
 {
 	if (!IsValidLocalPosition(LocalPosition))
 	{
@@ -38,13 +54,19 @@ bool FChunk::SetVoxel(const FIntVector& LocalPosition, const bool bIsSolid)
 	}
 
 	const int32 VoxelIndex = GetVoxelIndex(LocalPosition);
-	if (Voxels[VoxelIndex] == bIsSolid)
+	const FPaletteIndex PaletteIndex = CubeId.IsNone() ? EmptyPaletteIndex : FindOrAddPaletteIndex(CubeId);
+	if (Voxels[VoxelIndex] == PaletteIndex)
 	{
 		return false;
 	}
 
-	Voxels[VoxelIndex] = bIsSolid;
+	Voxels[VoxelIndex] = PaletteIndex;
 	return true;
+}
+
+bool FChunk::RemoveVoxel(const FIntVector& LocalPosition)
+{
+	return SetVoxel(LocalPosition, NAME_None);
 }
 
 TArray<FIntVector> FChunk::GetVoxelLocalPositions() const
@@ -53,7 +75,7 @@ TArray<FIntVector> FChunk::GetVoxelLocalPositions() const
 
 	for (int32 Index = 0; Index < Voxels.Num(); ++Index)
 	{
-		if (Voxels[Index])
+		if (Voxels[Index] != EmptyPaletteIndex)
 		{
 			LocalPositions.Add(GetLocalPosition(Index));
 		}
@@ -65,4 +87,17 @@ TArray<FIntVector> FChunk::GetVoxelLocalPositions() const
 int32 FChunk::GetVoxelIndex(const FIntVector& LocalPosition) const
 {
 	return LocalPosition.X + Size.X * (LocalPosition.Y + Size.Y * LocalPosition.Z);
+}
+
+FChunk::FPaletteIndex FChunk::FindOrAddPaletteIndex(const FName CubeId)
+{
+	if (const FPaletteIndex* ExistingIndex = PaletteIndexByCubeId.Find(CubeId))
+	{
+		return *ExistingIndex;
+	}
+
+	checkf(Palette.Num() < EmptyPaletteIndex, TEXT("Chunk palette cannot contain more than %u cube types"), EmptyPaletteIndex);
+	const FPaletteIndex NewIndex = static_cast<FPaletteIndex>(Palette.Add(CubeId));
+	PaletteIndexByCubeId.Add(CubeId, NewIndex);
+	return NewIndex;
 }

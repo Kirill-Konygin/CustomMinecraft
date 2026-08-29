@@ -166,6 +166,20 @@ void AVoxelTerrain::InitializeVoxelInstances()
 void AVoxelTerrain::GenerateTerrain()
 {
 	Chunk = MakeUnique<FChunk>(FIntVector(SizeX, SizeY, SizeZ));
+	if (!CubeDefinitions)
+	{
+		RenderChunk();
+		return;
+	}
+
+	const TArray<FName> RowNames = CubeDefinitions->GetRowNames();
+	if (RowNames.IsEmpty())
+	{
+		RenderChunk();
+		return;
+	}
+
+	const FName CubeType = RowNames[0];
 
 	for (int X = 0; X < SizeX; ++X)
 	{
@@ -174,7 +188,7 @@ void AVoxelTerrain::GenerateTerrain()
 			const int Height = FMath::Clamp(GetHeight(X, Y), 0, SizeZ);
 			for (int Z = 0; Z < Height; ++Z)
 			{
-				Chunk->SetVoxel(FIntVector(X, Y, Z), true);
+				Chunk->SetVoxel(FIntVector(X, Y, Z), CubeType);
 			}
 		}
 	}
@@ -202,7 +216,13 @@ void AVoxelTerrain::RenderChunk()
 
 bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 {
-	if (!Chunk || !VoxelInstanceManager || !Chunk->SetVoxel(GridPosition, true))
+	if (!Chunk || !VoxelInstanceManager || !CubeDefinitions)
+	{
+		return false;
+	}
+
+	const TArray<FName> RowNames = CubeDefinitions->GetRowNames();
+	if (RowNames.IsEmpty() || !Chunk->SetVoxel(GridPosition, RowNames[0]))
 	{
 		return false;
 	}
@@ -213,7 +233,7 @@ bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 
 bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 {
-	if (!Chunk || !VoxelInstanceManager || !Chunk->SetVoxel(GridPosition, false))
+	if (!Chunk || !VoxelInstanceManager || !Chunk->RemoveVoxel(GridPosition))
 	{
 		return false;
 	}

@@ -12,13 +12,22 @@ public:
 
 	bool IsValidLocalPosition(const FIntVector& LocalPosition) const;
 	bool HasVoxel(const FIntVector& LocalPosition) const;
-	bool SetVoxel(const FIntVector& LocalPosition, bool bIsSolid);
+	TOptional<FName> GetVoxelType(const FIntVector& LocalPosition) const;
+	bool SetVoxel(const FIntVector& LocalPosition, FName CubeId);
+	bool RemoveVoxel(const FIntVector& LocalPosition);
 
 	TArray<FIntVector> GetVoxelLocalPositions() const;
 
 private:
+	using FPaletteIndex = uint16;
+	static constexpr FPaletteIndex EmptyPaletteIndex = MAX_uint16;
+
 	int32 GetVoxelIndex(const FIntVector& LocalPosition) const;
+	FPaletteIndex GetVoxelPaletteIndex(const FIntVector& LocalPosition) const;
+	FPaletteIndex FindOrAddPaletteIndex(FName CubeId);
 
 	FIntVector Size = FIntVector(1, 1, 1);
-	TArray<bool> Voxels;
+	TArray<FName> Palette;
+	TMap<FName, FPaletteIndex> PaletteIndexByCubeId;
+	TArray<FPaletteIndex> Voxels;
 };
