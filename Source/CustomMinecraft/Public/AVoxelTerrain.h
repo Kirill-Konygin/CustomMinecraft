@@ -35,6 +35,8 @@ protected:
 	void InitializeVoxelInstances();
 	int GetHeight(int X, int Y) const;
 	FName GetCubeTypeByHeight(const TArray<FName>& RowNames, int height);
+	static FIntVector CalculateVoxelHitNormal(const FIntVector& PreviousGridPosition, const FIntVector& GridPosition);
+	TOptional<FVoxelHit> TraceVoxelGridDDA(const FVector& GridStart, const FVector& GridEnd) const;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Voxel Terrain")
 	TObjectPtr<USceneComponent> SceneRoot;

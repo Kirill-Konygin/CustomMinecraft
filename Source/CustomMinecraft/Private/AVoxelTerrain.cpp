@@ -278,22 +278,86 @@ bool AVoxelTerrain::DoesCubeOverlapSphere(const FIntVector& GridPosition, const 
 
 TOptional<FVoxelHit> AVoxelTerrain::TraceVoxel(const FVector& Start, const FVector& End) const
 {
-	TOptional<FVoxelInstanceHit> ClosestHit;
-	for (const auto& [Name, ManagerPtr] : VoxelInstanceManagers)
+	if (!Chunk || VoxelSize <= 0.0f)
 	{
-		if (!ManagerPtr)
+		return {};
+	}
+
+	const FTransform TerrainTransform = GetActorTransform();
+	const FVector GridStart = TerrainTransform.InverseTransformPosition(Start) / VoxelSize;
+	const FVector GridEnd = TerrainTransform.InverseTransformPosition(End) / VoxelSize;
+	return TraceVoxelGridDDA(GridStart, GridEnd);
+}
+
+FIntVector AVoxelTerrain::CalculateVoxelHitNormal(const FIntVector& PreviousGridPosition, const FIntVector& GridPosition)
+{
+	return PreviousGridPosition - GridPosition;
+}
+
+TOptional<FVoxelHit> AVoxelTerrain::TraceVoxelGridDDA(const FVector& GridStart, const FVector& GridEnd) const
+{
+	// Delta represents the entire ray segment in grid space. The ray parameter ranges from 0 to 1.
+	const FVector Delta = GridEnd - GridStart;
+
+	// Voxel centers are at integer coordinates, so their boundaries are offset by 0.5.
+	FIntVector GridPosition(FMath::FloorToInt(GridStart.X + 0.5), FMath::FloorToInt(GridStart.Y + 0.5), FMath::FloorToInt(GridStart.Z + 0.5));
+
+	// The ray may start inside an occupied voxel.
+	if (Chunk->HasVoxel(GridPosition))
+	{
+		return FVoxelHit{GridPosition, FIntVector::ZeroValue};
+	}
+
+	// Step stores the traversal direction for each axis: -1, 0, or 1.
+	FIntVector Step = FIntVector::ZeroValue;
+
+	// ParameterDelta is the ray-parameter distance between adjacent boundaries on an axis.
+	// NextBoundaryParameter is the parameter at which the ray reaches the next boundary on an axis.
+	const double MaxParameter = TNumericLimits<double>::Max();
+	FVector ParameterDelta(MaxParameter, MaxParameter, MaxParameter);
+	FVector NextBoundaryParameter = ParameterDelta;
+
+	for (int32 Axis = 0; Axis < 3; ++Axis)
+	{
+		// A stationary axis never crosses another boundary.
+		if (Delta[Axis] == 0.0)
 		{
 			continue;
 		}
 
-		const TOptional<FVoxelInstanceHit> Hit = ManagerPtr->TraceVoxel(Start, End);
-		if (Hit && (!ClosestHit || Hit->Distance < ClosestHit->Distance))
+		Step[Axis] = Delta[Axis] > 0.0 ? 1 : -1;
+		ParameterDelta[Axis] = 1.0 / FMath::Abs(Delta[Axis]);
+
+		const double NextBoundary = GridPosition[Axis] + 0.5 * Step[Axis];
+		NextBoundaryParameter[Axis] = (NextBoundary - GridStart[Axis]) / Delta[Axis];
+	}
+
+	// Traverse voxels while the nearest boundary is still within the ray segment.
+	while (FMath::Min3(NextBoundaryParameter.X, NextBoundaryParameter.Y, NextBoundaryParameter.Z) <= 1.0)
+	{
+		// Select the axis whose boundary the ray reaches first.
+		int32 NextAxis = 0;
+		if (NextBoundaryParameter.Y < NextBoundaryParameter[NextAxis])
 		{
-			ClosestHit = Hit;
+			NextAxis = 1;
+		}
+		if (NextBoundaryParameter.Z < NextBoundaryParameter[NextAxis])
+		{
+			NextAxis = 2;
+		}
+
+		// Enter the adjacent voxel and advance the selected axis boundary by one cell.
+		const FIntVector PreviousGridPosition = GridPosition;
+		GridPosition[NextAxis] += Step[NextAxis];
+		NextBoundaryParameter[NextAxis] += ParameterDelta[NextAxis];
+
+		if (Chunk->HasVoxel(GridPosition))
+		{
+			return FVoxelHit{GridPosition, CalculateVoxelHitNormal(PreviousGridPosition, GridPosition)};
 		}
 	}
 
-	return ClosestHit ? TOptional<FVoxelHit>(FVoxelHit{ClosestHit->Position, ClosestHit->Normal}) : TOptional<FVoxelHit>();
+	return {};
 }
 
 // Called every frame
