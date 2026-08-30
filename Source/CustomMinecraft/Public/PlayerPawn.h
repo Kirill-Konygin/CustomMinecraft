@@ -67,7 +67,7 @@ protected:
 
 	TOptional<FIntVector> CurrentMiningVoxel;
 	float MiningTimeRemaining = 0.f;
-	float MiningDuration = 2.f;
+	float MiningDuration = 0.f;
 
 public:	
 	// Called every frame

@@ -132,6 +132,15 @@ void AVoxelTerrain::BeginPlay()
 	GenerateTerrain();
 }
 
+const FCubeDefinition* AVoxelTerrain::FindCubeDefinition(const FName Type) const
+{
+	if (CubeDefinitions) 
+	{
+		return CubeDefinitions->FindRow<FCubeDefinition>(Type, TEXT("AVoxelTerrain::FindCubeDefinition"));
+	}
+	return nullptr;
+}
+
 void AVoxelTerrain::InitializeVoxelInstances()
 {
 	VoxelInstanceManagers.Reset();
@@ -151,7 +160,7 @@ void AVoxelTerrain::InitializeVoxelInstances()
 
 	for (const FName RowName : RowNames)
 	{
-		const FCubeDefinition* CubeDefinition = CubeDefinitions->FindRow<FCubeDefinition>(RowName,TEXT("AVoxelTerrain::InitializeVoxelInstances"));
+		const FCubeDefinition* CubeDefinition = FindCubeDefinition(RowName);
 		if (!CubeDefinition)
 		{
 			continue;
@@ -276,6 +285,17 @@ bool AVoxelTerrain::DoesCubeOverlapSphere(const FIntVector& GridPosition, const 
 	return false;
 }
 
+float AVoxelTerrain::GetMiningDuration(const FName Type)
+{
+	if (const FCubeDefinition* Definition = FindCubeDefinition(Type))
+	{
+		return Definition->MiningDuration;
+	}
+
+	checkNoEntry();
+	return 0.f;
+}
+
 TOptional<FVoxelHit> AVoxelTerrain::TraceVoxel(const FVector& Start, const FVector& End) const
 {
 	if (!Chunk || VoxelSize <= 0.0f)
@@ -303,9 +323,9 @@ TOptional<FVoxelHit> AVoxelTerrain::TraceVoxelGridDDA(const FVector& GridStart, 
 	FIntVector GridPosition(FMath::FloorToInt(GridStart.X + 0.5), FMath::FloorToInt(GridStart.Y + 0.5), FMath::FloorToInt(GridStart.Z + 0.5));
 
 	// The ray may start inside an occupied voxel.
-	if (Chunk->HasVoxel(GridPosition))
+	if (const TOptional<FName> Type = Chunk->GetVoxelType(GridPosition))
 	{
-		return FVoxelHit{GridPosition, FIntVector::ZeroValue};
+		return FVoxelHit{GridPosition, FIntVector::ZeroValue, *Type};
 	}
 
 	// Step stores the traversal direction for each axis: -1, 0, or 1.
@@ -351,9 +371,9 @@ TOptional<FVoxelHit> AVoxelTerrain::TraceVoxelGridDDA(const FVector& GridStart, 
 		GridPosition[NextAxis] += Step[NextAxis];
 		NextBoundaryParameter[NextAxis] += ParameterDelta[NextAxis];
 
-		if (Chunk->HasVoxel(GridPosition))
+		if (const TOptional<FName> Type = Chunk->GetVoxelType(GridPosition))
 		{
-			return FVoxelHit{GridPosition, CalculateVoxelHitNormal(PreviousGridPosition, GridPosition)};
+			return FVoxelHit{GridPosition, CalculateVoxelHitNormal(PreviousGridPosition, GridPosition), *Type};
 		}
 	}
 

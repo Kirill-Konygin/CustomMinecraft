@@ -10,11 +10,13 @@
 
 class UDataTable;
 class USceneComponent;
+struct FCubeDefinition;
 
 struct FVoxelHit
 {
 	FIntVector Position = FIntVector::ZeroValue;
 	FIntVector Normal = FIntVector::ZeroValue;
+	FName Type;
 };
 
 UCLASS()
@@ -33,6 +35,7 @@ protected:
 	void GenerateTerrain();
 	void RenderChunk();
 	void InitializeVoxelInstances();
+	const FCubeDefinition* FindCubeDefinition(FName Type) const;
 	int GetHeight(int X, int Y) const;
 	FName GetCubeTypeByHeight(const TArray<FName>& RowNames, int height);
 	static FIntVector CalculateVoxelHitNormal(const FIntVector& PreviousGridPosition, const FIntVector& GridPosition);
@@ -54,6 +57,7 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	bool AddCube(const FIntVector& GridPosition);
 	bool RemoveCube(const FIntVector& GridPosition);
+	float GetMiningDuration(FName Type);
 	bool DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, float SphereRadius) const;
 	TOptional<FVoxelHit> TraceVoxel(const FVector& Start, const FVector& End) const;
 

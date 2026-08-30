@@ -205,6 +205,7 @@ void APlayerPawn::MineCube()
 	if (!CurrentMiningVoxel || CurrentMiningVoxel.GetValue() != VoxelPosition)
 	{
 		CurrentMiningVoxel = VoxelPosition;
+		MiningDuration = VoxelTerrain->GetMiningDuration(VoxelHit->Type);
 		MiningTimeRemaining = MiningDuration;
 		return;
 	}
