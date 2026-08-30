@@ -51,6 +51,7 @@ protected:
 	virtual void BeginPlay() override;
 
 	void GenerateTerrain();
+	void ApplySeed();
 	void RenderChunk();
 	void InitializeVoxelInstances();
 	void FillCubeTypesByLayer();
@@ -88,6 +89,11 @@ public:
 	TOptional<FVoxelHit> TraceVoxel(const FVector& Start, const FVector& End) const;
 
 protected:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain|Seed")
+	int Seed = 0;
+
+	FVector2D NoiseOffset = FVector2D::ZeroVector;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1"))
 	int SizeX = 10;
 

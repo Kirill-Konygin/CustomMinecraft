@@ -214,6 +214,8 @@ void AVoxelTerrain::FillCubeTypesByLayer()
 
 void AVoxelTerrain::GenerateTerrain()
 {
+	ApplySeed();
+
 	Chunk = MakeUnique<FChunk>(FIntVector(SizeX, SizeY, SizeZ));
 	if (!CubeDefinitions)
 	{
@@ -243,9 +245,26 @@ void AVoxelTerrain::GenerateTerrain()
 	RenderChunk();
 }
 
+void AVoxelTerrain::ApplySeed()
+{
+	const double Range = 100000.0;
+
+	if (Seed == 0)
+	{
+		FRandomStream SeedGenerator;
+		SeedGenerator.GenerateNewSeed();
+		Seed = SeedGenerator.GetInitialSeed();
+	}
+
+	FRandomStream RandomStream(Seed);
+
+	NoiseOffset = FVector2D(RandomStream.FRandRange(-Range, Range), RandomStream.FRandRange(-Range, Range));
+	UE_LOG(LogTemp, Log, TEXT("Applied terrain seed: %d"), Seed);
+}
+
 int AVoxelTerrain::GetHeight(const int X, const int Y) const
 {
-	const FVector2D NoisePosition(static_cast<double>(X) * NoiseFrequency,static_cast<double>(Y) * NoiseFrequency);
+	const FVector2D NoisePosition(static_cast<double>(X) * NoiseFrequency + NoiseOffset.X, static_cast<double>(Y) * NoiseFrequency + NoiseOffset.Y);
 	const float NoiseValue = FMath::PerlinNoise2D(NoisePosition);
 
 	return NoiseAmplitude + FMath::RoundToInt(NoiseValue * NoiseAmplitude);
