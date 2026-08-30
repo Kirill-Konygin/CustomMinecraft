@@ -41,30 +41,8 @@ void APlayerPawn::BeginPlay()
 
 	if (!VoxelTerrain)
 	{
-		VoxelTerrain = Cast<AVoxelTerrain>(
-			UGameplayStatics::GetActorOfClass(this, AVoxelTerrain::StaticClass()));
+		VoxelTerrain = Cast<AVoxelTerrain>(UGameplayStatics::GetActorOfClass(this, AVoxelTerrain::StaticClass()));
 	}
-
-	APlayerController* PlayerController = Cast<APlayerController>(GetController());
-	if (!PlayerController)
-	{
-		return;
-	}
-
-	if (InputMappingContext)
-	{
-		if (ULocalPlayer* LocalPlayer = PlayerController->GetLocalPlayer())
-		{
-			if (UEnhancedInputLocalPlayerSubsystem* InputSubsystem =
-				LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
-			{
-				InputSubsystem->AddMappingContext(InputMappingContext, 0);
-			}
-		}
-	}
-
-	PlayerController->SetShowMouseCursor(false);
-	PlayerController->SetInputMode(FInputModeGameOnly());
 }
 
 // Called every frame
@@ -162,6 +140,32 @@ void APlayerPawn::ResetMining()
 {
 	CurrentMiningVoxel.Reset();
 	MiningTimeRemaining = MiningDuration;
+}
+
+void APlayerPawn::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	APlayerController* PlayerController = Cast<APlayerController>(NewController);
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	if (InputMappingContext)
+	{
+		if (ULocalPlayer* LocalPlayer = PlayerController->GetLocalPlayer())
+		{
+			if (UEnhancedInputLocalPlayerSubsystem* InputSubsystem =
+				LocalPlayer->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>())
+			{
+				InputSubsystem->AddMappingContext(InputMappingContext, 0);
+			}
+		}
+	}
+
+	PlayerController->SetShowMouseCursor(false);
+	PlayerController->SetInputMode(FInputModeGameOnly());
 }
 
 void APlayerPawn::AddCube()

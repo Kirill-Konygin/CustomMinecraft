@@ -35,6 +35,8 @@ protected:
 	bool GetInteractionRay(FVector& OutStart, FVector& OutEnd) const;
 	void ResetMining();
 
+	void PossessedBy(AController* NewController) override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player|Components")
 	TObjectPtr<UFloatingPawnMovement> MovementComponent;
 

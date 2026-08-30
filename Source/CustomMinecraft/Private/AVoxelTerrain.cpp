@@ -136,6 +136,7 @@ void AVoxelTerrain::BeginPlay()
 	InitializeVoxelInstances();
 	FillCubeTypesByLayer();
 	GenerateTerrain();
+	OnTerrainGenerated.Broadcast();
 }
 
 const FCubeDefinition* AVoxelTerrain::FindCubeDefinition(const FName Type) const
@@ -268,6 +269,33 @@ int AVoxelTerrain::GetHeight(const int X, const int Y) const
 	const float NoiseValue = FMath::PerlinNoise2D(NoisePosition);
 
 	return BaseTerrainHeight + NoiseAmplitude + FMath::RoundToInt(NoiseValue * NoiseAmplitude);
+}
+
+FVector AVoxelTerrain::GetLocationAboveSurface(const int32 GridX, const int32 GridY) const
+{
+	if (!Chunk)
+	{
+		return FVector::ZeroVector;
+	}
+
+	const FIntVector& ChunkSize = Chunk->GetSize();
+	if (GridX < 0 || GridX >= ChunkSize.X || GridY < 0 || GridY >= ChunkSize.Y)
+	{
+		return FVector::ZeroVector;
+	}
+
+	int32 SurfaceZ = INDEX_NONE;
+	for (int32 GridZ = ChunkSize.Z - 1; GridZ >= 0; --GridZ)
+	{
+		if (Chunk->HasVoxel(FIntVector(GridX, GridY, GridZ)))
+		{
+			SurfaceZ = GridZ;
+			break;
+		}
+	}
+
+	const FVector LocalLocation(static_cast<double>(GridX) * VoxelSize, static_cast<double>(GridY) * VoxelSize, static_cast<double>(SurfaceZ + 1) * VoxelSize);
+	return GetActorTransform().TransformPosition(LocalLocation);
 }
 
 FName AVoxelTerrain::GetCubeTypeByHeight(int32 height)

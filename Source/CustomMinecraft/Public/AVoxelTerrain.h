@@ -20,6 +20,8 @@ struct FVoxelHit
 	FName Type;
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTerrainGenerated);
+
 USTRUCT(BlueprintType)
 struct CUSTOMMINECRAFT_API FCubeHeightRange
 {
@@ -45,6 +47,12 @@ class CUSTOMMINECRAFT_API AVoxelTerrain : public AActor
 public:	
 	// Sets default values for this actor's properties
 	AVoxelTerrain();
+
+	UPROPERTY(BlueprintAssignable, Category = "Voxel Terrain|Generation")
+	FOnTerrainGenerated OnTerrainGenerated;
+
+	UFUNCTION(BlueprintPure, Category = "Voxel Terrain|Generation")
+	FVector GetLocationAboveSurface(int32 GridX = 0, int32 GridY = 0) const;
 
 protected:
 	// Called when the game starts or when spawned
