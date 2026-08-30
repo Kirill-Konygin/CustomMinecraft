@@ -35,6 +35,7 @@ protected:
 	void GenerateTerrain();
 	void RenderChunk();
 	void InitializeVoxelInstances();
+	bool CanRemoveCube(const FIntVector& GridPosition) const;
 	const FCubeDefinition* FindCubeDefinition(FName Type) const;
 	int GetHeight(int X, int Y) const;
 	FName GetCubeTypeByHeight(const TArray<FName>& RowNames, int height);

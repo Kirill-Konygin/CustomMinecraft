@@ -263,13 +263,18 @@ bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 
 bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 {
-	if (!Chunk || VoxelInstanceManagers.IsEmpty() || !Chunk->RemoveVoxel(GridPosition))
+	if (!Chunk || VoxelInstanceManagers.IsEmpty() || !CanRemoveCube(GridPosition) || !Chunk->RemoveVoxel(GridPosition))
 	{
 		return false;
 	}
 
 	RenderChunk();
 	return true;
+}
+
+bool AVoxelTerrain::CanRemoveCube(const FIntVector& GridPosition) const
+{
+	return GridPosition.Z > 0;
 }
 
 bool AVoxelTerrain::DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, const float SphereRadius) const
