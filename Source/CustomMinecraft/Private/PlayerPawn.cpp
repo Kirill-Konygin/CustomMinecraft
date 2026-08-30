@@ -104,6 +104,21 @@ void APlayerPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	}
 }
 
+bool APlayerPawn::IsMining() const
+{
+	return CurrentMiningVoxel.IsSet();
+}
+
+float APlayerPawn::GetMiningProgress() const
+{
+	if (!IsMining()) 
+	{
+		return 0.f;
+	}
+
+	return FMath::Clamp(1.0f - MiningTimeRemaining / MiningDuration, 0.0f, 1.0f);
+}
+
 void APlayerPawn::Move(const FInputActionValue& Value)
 {
 	const FVector MoveValue = Value.Get<FVector>();
