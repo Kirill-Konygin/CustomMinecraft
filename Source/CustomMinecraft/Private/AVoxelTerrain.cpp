@@ -128,7 +128,13 @@ void AVoxelTerrain::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (!ValidateCubeDefinitions()) 
+	{
+		return;
+	}
+
 	InitializeVoxelInstances();
+	FillCubeTypesByLayer();
 	GenerateTerrain();
 }
 
@@ -141,22 +147,27 @@ const FCubeDefinition* AVoxelTerrain::FindCubeDefinition(const FName Type) const
 	return nullptr;
 }
 
+bool AVoxelTerrain::ValidateCubeDefinitions() const
+{
+	if (!CubeDefinitions)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Voxel terrain has no cube definitions DataTable selected"));
+		return false;
+	}
+
+	if (CubeDefinitions->GetRowNames().IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Cube definitions DataTable contains no rows"));
+		return false;
+	}
+
+	return true;
+}
+
 void AVoxelTerrain::InitializeVoxelInstances()
 {
 	VoxelInstanceManagers.Reset();
-
-	if (!CubeDefinitions)
-	{
-		UE_LOG(LogTemp, Warning,TEXT("Voxel terrain has no cube definitions DataTable selected"));
-		return;
-	}
-
 	const TArray<FName> RowNames = CubeDefinitions->GetRowNames();
-	if (RowNames.IsEmpty())
-	{
-		UE_LOG(LogTemp, Warning,TEXT("Cube definitions DataTable contains no rows"));
-		return;
-	}
 
 	for (const FName RowName : RowNames)
 	{
@@ -184,6 +195,23 @@ void AVoxelTerrain::InitializeVoxelInstances()
 	}
 }
 
+void AVoxelTerrain::FillCubeTypesByLayer()
+{
+	CubeTypesByLayer.Reset();
+
+	for (const FName RowName : CubeDefinitions->GetRowNames())
+	{
+		const FCubeDefinition* CubeDefinition = FindCubeDefinition(RowName);
+
+		if (!CubeDefinition || !CubeDefinition->GenerationLayer.IsValid())
+		{
+			continue;
+		}
+
+		CubeTypesByLayer.FindOrAdd(CubeDefinition->GenerationLayer).Add(RowName);
+	}
+}
+
 void AVoxelTerrain::GenerateTerrain()
 {
 	Chunk = MakeUnique<FChunk>(FIntVector(SizeX, SizeY, SizeZ));
@@ -207,7 +235,7 @@ void AVoxelTerrain::GenerateTerrain()
 			const int Height = FMath::Clamp(GetHeight(X, Y), 0, SizeZ);
 			for (int Z = 0; Z < Height; ++Z)
 			{
-				Chunk->SetVoxel(FIntVector(X, Y, Z), GetCubeTypeByHeight(RowNames,Z));
+				Chunk->SetVoxel(FIntVector(X, Y, Z), GetCubeTypeByHeight(Z));
 			}
 		}
 	}
@@ -223,9 +251,17 @@ int AVoxelTerrain::GetHeight(const int X, const int Y) const
 	return NoiseAmplitude + FMath::RoundToInt(NoiseValue * NoiseAmplitude);
 }
 
-FName AVoxelTerrain::GetCubeTypeByHeight(const TArray<FName>& RowNames, int height)
+FName AVoxelTerrain::GetCubeTypeByHeight(int32 height)
 {
-	return height > 5 ? RowNames[0] : RowNames[1];
+	for (const auto& [tag, range] : LayerRanges) 
+	{
+		if (range.InRange(height))
+		{
+			return CubeTypesByLayer.Find(tag)->Last();
+		}
+	}
+
+	return NAME_None;
 }
 
 void AVoxelTerrain::RenderChunk()
@@ -252,7 +288,7 @@ bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 	}
 
 	const TArray<FName> RowNames = CubeDefinitions->GetRowNames();
-	if (RowNames.IsEmpty() || !Chunk->SetVoxel(GridPosition, GetCubeTypeByHeight(RowNames, GridPosition.Z)))
+	if (RowNames.IsEmpty() || !Chunk->SetVoxel(GridPosition, GetCubeTypeByHeight(GridPosition.Z)))
 	{
 		return false;
 	}

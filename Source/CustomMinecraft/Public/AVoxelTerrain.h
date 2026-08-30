@@ -6,6 +6,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "VoxelInstanceManager.h"
+#include "GameplayTagContainer.h"
 #include "AVoxelTerrain.generated.h"
 
 class UDataTable;
@@ -17,6 +18,23 @@ struct FVoxelHit
 	FIntVector Position = FIntVector::ZeroValue;
 	FIntVector Normal = FIntVector::ZeroValue;
 	FName Type;
+};
+
+USTRUCT(BlueprintType)
+struct CUSTOMMINECRAFT_API FCubeHeightRange
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Layer")
+	int32 MinHeight = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Layer")
+	int32 MaxHeight = 0;
+
+	bool InRange(int32 val) const
+	{
+		return val <= MaxHeight && val >= MinHeight;
+	}
 };
 
 UCLASS()
@@ -35,10 +53,12 @@ protected:
 	void GenerateTerrain();
 	void RenderChunk();
 	void InitializeVoxelInstances();
+	void FillCubeTypesByLayer();
+	bool ValidateCubeDefinitions() const;
 	bool CanRemoveCube(const FIntVector& GridPosition) const;
 	const FCubeDefinition* FindCubeDefinition(FName Type) const;
 	int GetHeight(int X, int Y) const;
-	FName GetCubeTypeByHeight(const TArray<FName>& RowNames, int height);
+	FName GetCubeTypeByHeight(int32 height);
 	static FIntVector CalculateVoxelHitNormal(const FIntVector& PreviousGridPosition, const FIntVector& GridPosition);
 	TOptional<FVoxelHit> TraceVoxelGridDDA(const FVector& GridStart, const FVector& GridEnd) const;
 
@@ -52,6 +72,11 @@ protected:
 	TObjectPtr<UDataTable> CubeDefinitions;
 
 	TUniquePtr<FChunk> Chunk;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain|Layers", meta = (Categories = "World.Layer"))
+	TMap<FGameplayTag, FCubeHeightRange> LayerRanges;
+
+	TMap<FGameplayTag, TArray<FName>> CubeTypesByLayer;
 
 public:	
 	// Called every frame

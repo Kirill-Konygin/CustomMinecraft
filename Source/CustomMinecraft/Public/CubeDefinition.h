@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
+#include "GameplayTagContainer.h"
 #include "CubeDefinition.generated.h"
 
 class UMaterialInterface;
@@ -19,4 +20,7 @@ struct CUSTOMMINECRAFT_API FCubeDefinition : public FTableRowBase
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Cube|Rendering")
 	TObjectPtr<UMaterialInterface> Material = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Cube|Generation", meta = (Categories = "World.Layer"))
+	FGameplayTag GenerationLayer;
 };
