@@ -27,8 +27,6 @@ APlayerPawn::APlayerPawn()
 	CollisionSphere->SetCollisionProfileName(UCollisionProfile::Pawn_ProfileName);
 
 	MovementComponent = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("MovementComponent"));
-
-	AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
 
 UPawnMovementComponent* APlayerPawn::GetMovementComponent() const
