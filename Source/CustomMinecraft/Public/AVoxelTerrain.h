@@ -106,6 +106,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1.0"))
 	float VoxelSize = 100.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "0"))
+	int BaseTerrainHeight = 10;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain|Noise", meta = (ClampMin = "0.0001"))
 	float NoiseFrequency = 0.1f;
 

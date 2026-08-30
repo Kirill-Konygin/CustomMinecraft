@@ -267,7 +267,7 @@ int AVoxelTerrain::GetHeight(const int X, const int Y) const
 	const FVector2D NoisePosition(static_cast<double>(X) * NoiseFrequency + NoiseOffset.X, static_cast<double>(Y) * NoiseFrequency + NoiseOffset.Y);
 	const float NoiseValue = FMath::PerlinNoise2D(NoisePosition);
 
-	return NoiseAmplitude + FMath::RoundToInt(NoiseValue * NoiseAmplitude);
+	return BaseTerrainHeight + NoiseAmplitude + FMath::RoundToInt(NoiseValue * NoiseAmplitude);
 }
 
 FName AVoxelTerrain::GetCubeTypeByHeight(int32 height)
