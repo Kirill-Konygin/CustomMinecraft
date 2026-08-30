@@ -31,8 +31,9 @@ protected:
 	void Move(const FInputActionValue& Value);
 	void Look(const FInputActionValue& Value);
 	void AddCube();
-	void RemoveCube();
+	void MineCube();
 	bool GetInteractionRay(FVector& OutStart, FVector& OutEnd) const;
+	void ResetMining();
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Player|Components")
 	TObjectPtr<UFloatingPawnMovement> MovementComponent;
@@ -53,7 +54,7 @@ protected:
 	TObjectPtr<UInputAction> LookAction;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Player|Input")
-	TObjectPtr<UInputAction> RemoveCubeAction;
+	TObjectPtr<UInputAction> MineCubeAction;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Player|Input")
 	TObjectPtr<UInputAction> AddCubeAction;
@@ -63,6 +64,10 @@ protected:
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Player|Interaction")
 	TObjectPtr<AVoxelTerrain> VoxelTerrain;
+
+	TOptional<FIntVector> CurrentMiningVoxel;
+	float MiningTimeRemaining = 0.f;
+	float MiningDuration = 2.f;
 
 public:	
 	// Called every frame

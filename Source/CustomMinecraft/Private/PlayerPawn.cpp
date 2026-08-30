@@ -92,15 +92,15 @@ void APlayerPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	{
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayerPawn::Look);
 	}
-	if (RemoveCubeAction)
+	if (MineCubeAction)
 	{
-		EnhancedInputComponent->BindAction(
-			RemoveCubeAction, ETriggerEvent::Started, this, &APlayerPawn::RemoveCube);
+		EnhancedInputComponent->BindAction(MineCubeAction, ETriggerEvent::Triggered, this, &APlayerPawn::MineCube);
+		EnhancedInputComponent->BindAction(MineCubeAction, ETriggerEvent::Completed, this, &APlayerPawn::ResetMining); 
+		EnhancedInputComponent->BindAction(MineCubeAction, ETriggerEvent::Canceled, this, &APlayerPawn::ResetMining);
 	}
 	if (AddCubeAction)
 	{
-		EnhancedInputComponent->BindAction(
-			AddCubeAction, ETriggerEvent::Started, this, &APlayerPawn::AddCube);
+		EnhancedInputComponent->BindAction(AddCubeAction, ETriggerEvent::Started, this, &APlayerPawn::AddCube);
 	}
 }
 
@@ -143,6 +143,12 @@ bool APlayerPawn::GetInteractionRay(FVector& OutStart, FVector& OutEnd) const
 	return true;
 }
 
+void APlayerPawn::ResetMining()
+{
+	CurrentMiningVoxel.Reset();
+	MiningTimeRemaining = MiningDuration;
+}
+
 void APlayerPawn::AddCube()
 {
 	FVector TraceStart;
@@ -162,18 +168,37 @@ void APlayerPawn::AddCube()
 	}
 }
 
-void APlayerPawn::RemoveCube()
+void APlayerPawn::MineCube()
 {
 	FVector TraceStart;
 	FVector TraceEnd;
 	if (!VoxelTerrain || !GetInteractionRay(TraceStart, TraceEnd))
 	{
+		ResetMining();
 		return;
 	}
 
-	if (const TOptional<FVoxelHit> VoxelHit = VoxelTerrain->TraceVoxel(TraceStart, TraceEnd))
+	const TOptional<FVoxelHit> VoxelHit = VoxelTerrain->TraceVoxel(TraceStart, TraceEnd);
+	if (!VoxelHit)
 	{
-		VoxelTerrain->RemoveCube(VoxelHit->Position);
+		ResetMining();
+		return;
+	}
+
+	const FIntVector& VoxelPosition = VoxelHit->Position;
+
+	if (!CurrentMiningVoxel || CurrentMiningVoxel.GetValue() != VoxelPosition)
+	{
+		CurrentMiningVoxel = VoxelPosition;
+		MiningTimeRemaining = MiningDuration;
+		return;
+	}
+
+	MiningTimeRemaining -= GetWorld()->GetDeltaSeconds();
+
+	if (MiningTimeRemaining <= 0.f) {
+		VoxelTerrain->RemoveCube(VoxelPosition);
+		ResetMining();
 	}
 }
 
