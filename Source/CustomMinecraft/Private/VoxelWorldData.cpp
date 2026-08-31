@@ -114,7 +114,7 @@ TOptional<int32> FVoxelWorldData::FindSurfaceZ(const FIntPoint& GridPosition) co
 		}
 	}
 
-	return INDEX_NONE;
+	return {};
 }
 
 FIntPoint FVoxelWorldData::GetRegionPosition(const FIntPoint& GridPosition) const

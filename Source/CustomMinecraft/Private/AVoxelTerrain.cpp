@@ -304,7 +304,13 @@ FName AVoxelTerrain::GetCubeTypeByHeight(int32 height)
 	{
 		if (range.InRange(height))
 		{
-			return CubeTypesByLayer.Find(tag)->Last();
+			const TArray<FName>* CubeTypes = CubeTypesByLayer.Find(tag);
+			if (!CubeTypes || CubeTypes->IsEmpty())
+			{
+				return NAME_None;
+			}
+
+			return CubeTypes->Last();
 		}
 	}
 
