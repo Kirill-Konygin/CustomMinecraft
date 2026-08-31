@@ -122,6 +122,16 @@ void UVoxelInstanceRenderer::SetCubes(const TConstArrayView<FIntVector> GridPosi
 		DesiredGridPositions.Add(GridPosition);
 	}
 
+	if (!RemoveObsoleteInstances(DesiredGridPositions))
+	{
+		return;
+	}
+
+	AddMissingInstances(DesiredGridPositions);
+}
+
+bool UVoxelInstanceRenderer::RemoveObsoleteInstances(const TSet<FIntVector>& DesiredGridPositions)
+{
 	TArray<int32> InstanceIndicesToRemove;
 	InstanceIndicesToRemove.Reserve(InstanceIndexByGridPosition.Num());
 	for (const auto& [GridPosition, InstanceIndex] : InstanceIndexByGridPosition)
@@ -132,30 +142,43 @@ void UVoxelInstanceRenderer::SetCubes(const TConstArrayView<FIntVector> GridPosi
 		}
 	}
 
-	if (!InstanceIndicesToRemove.IsEmpty())
+	if (InstanceIndicesToRemove.IsEmpty())
 	{
-		InstanceIndicesToRemove.Sort(TGreater<int32>());
-		if (!VoxelMesh->RemoveInstances(InstanceIndicesToRemove, true))
-		{
-			return;
-		}
+		return true;
+	}
 
-		for (const int32 InstanceIndex : InstanceIndicesToRemove)
-		{
-			if (GridPositionByInstanceIndex.IsValidIndex(InstanceIndex))
-			{
-				GridPositionByInstanceIndex.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
-			}
-		}
+	// Remove highest indices first so each removal does not invalidate the remaining indices.
+	// The same order mirrors swap removal in GridPositionByInstanceIndex.
+	InstanceIndicesToRemove.Sort(TGreater<int32>());
+	if (!VoxelMesh->RemoveInstances(InstanceIndicesToRemove, true))
+	{
+		return false;
+	}
 
-		InstanceIndexByGridPosition.Reset();
-		InstanceIndexByGridPosition.Reserve(GridPositionByInstanceIndex.Num());
-		for (int32 InstanceIndex = 0; InstanceIndex < GridPositionByInstanceIndex.Num(); ++InstanceIndex)
+	for (const int32 InstanceIndex : InstanceIndicesToRemove)
+	{
+		if (GridPositionByInstanceIndex.IsValidIndex(InstanceIndex))
 		{
-			InstanceIndexByGridPosition.Add(GridPositionByInstanceIndex[InstanceIndex], InstanceIndex);
+			GridPositionByInstanceIndex.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
 		}
 	}
 
+	RebuildInstanceIndexLookup();
+	return true;
+}
+
+void UVoxelInstanceRenderer::RebuildInstanceIndexLookup()
+{
+	InstanceIndexByGridPosition.Reset();
+	InstanceIndexByGridPosition.Reserve(GridPositionByInstanceIndex.Num());
+	for (int32 InstanceIndex = 0; InstanceIndex < GridPositionByInstanceIndex.Num(); ++InstanceIndex)
+	{
+		InstanceIndexByGridPosition.Add(GridPositionByInstanceIndex[InstanceIndex], InstanceIndex);
+	}
+}
+
+void UVoxelInstanceRenderer::AddMissingInstances(const TSet<FIntVector>& DesiredGridPositions)
+{
 	TArray<FTransform> Transforms;
 	TArray<FIntVector> GridPositionsToAdd;
 	Transforms.Reserve(DesiredGridPositions.Num());
@@ -192,19 +215,6 @@ void UVoxelInstanceRenderer::SetCubes(const TConstArrayView<FIntVector> GridPosi
 		InstanceIndexByGridPosition.Add(GridPosition, InstanceIndex);
 		GridPositionByInstanceIndex[InstanceIndex] = GridPosition;
 	}
-}
-
-bool UVoxelInstanceRenderer::DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, const float SphereRadius) const
-{
-	if (!IsReady())
-	{
-		return false;
-	}
-
-	const FTransform CubeWorldTransform = MakeCubeTransform(GridPosition) * VoxelMesh->GetComponentTransform();
-	const FBox CubeBounds = VoxelMesh->GetStaticMesh()->GetBoundingBox().TransformBy(CubeWorldTransform);
-
-	return FMath::SphereAABBIntersection(SphereCenter, FMath::Square(static_cast<double>(SphereRadius)), CubeBounds);
 }
 
 TOptional<FVoxelInstanceHit> UVoxelInstanceRenderer::TraceVoxel(const FVector& Start, const FVector& End) const

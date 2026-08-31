@@ -25,7 +25,6 @@ public:
 
 	void Initialize(const FCubeDefinition& InCubeDefinition, float InVoxelSize);
 	void SetCubes(TConstArrayView<FIntVector> GridPositions);
-	bool DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter,float SphereRadius) const;
 	TOptional<FVoxelInstanceHit> TraceVoxel(const FVector& Start, const FVector& End) const;
 
 protected:
@@ -36,6 +35,9 @@ protected:
 private:
 	void CreateVoxelMesh();
 	bool IsReady() const;
+	bool RemoveObsoleteInstances(const TSet<FIntVector>& DesiredGridPositions);
+	void RebuildInstanceIndexLookup();
+	void AddMissingInstances(const TSet<FIntVector>& DesiredGridPositions);
 	FTransform MakeCubeTransform(const FIntVector& GridPosition) const;
 
 	UPROPERTY(Transient)

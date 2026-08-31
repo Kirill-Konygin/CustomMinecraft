@@ -371,15 +371,7 @@ bool AVoxelTerrain::CanRemoveCube(const FIntVector& GridPosition) const
 
 bool AVoxelTerrain::DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, const float SphereRadius) const
 {
-	for (const auto& [Name, ManagerPtr] : VoxelInstanceManagers)
-	{
-		if (ManagerPtr)
-		{
-			return ManagerPtr->DoesCubeOverlapSphere(GridPosition, SphereCenter, SphereRadius);
-		}
-	}
-
-	return false;
+	return VoxelCollision && VoxelCollision->DoesCubeOverlapSphere(GridPosition, SphereCenter, SphereRadius);
 }
 
 float AVoxelTerrain::GetMiningDuration(const FName Type)
