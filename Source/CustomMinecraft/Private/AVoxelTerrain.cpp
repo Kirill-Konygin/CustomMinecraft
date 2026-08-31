@@ -139,6 +139,7 @@ void AVoxelTerrain::BeginPlay()
 	InitializeVoxelInstances();
 	VoxelCollision->Initialize(VoxelSize);
 	FillCubeTypesByLayer();
+	WorldData.Initialize(FIntVector(ChunkSizeX, ChunkSizeY, SizeZ));
 	GenerateTerrain();
 	OnTerrainGenerated.Broadcast();
 }
@@ -220,113 +221,36 @@ void AVoxelTerrain::FillCubeTypesByLayer()
 void AVoxelTerrain::GenerateTerrain()
 {
 	ApplySeed();
-	RenderChunks();
+	RenderWorld();
 	VoxelCollision->Refresh();
 }
 
-void AVoxelTerrain::GenerateChunk(const FIntPoint& ChunkPosition)
+void AVoxelTerrain::GenerateArea(const FIntRect& Area)
 {
-	if (Chunks.Contains(ChunkPosition))
+	for (int WorldX = Area.Min.X; WorldX < Area.Max.X; ++WorldX)
 	{
-		return;
-	}
-
-	TUniquePtr<FChunk> NewChunk = MakeUnique<FChunk>(FIntVector(ChunkSizeX, ChunkSizeY, SizeZ));
-	const int StartX = ChunkPosition.X * ChunkSizeX;
-	const int StartY = ChunkPosition.Y * ChunkSizeY;
-
-	for (int X = 0; X < ChunkSizeX; ++X)
-	{
-		for (int Y = 0; Y < ChunkSizeY; ++Y)
+		for (int WorldY = Area.Min.Y; WorldY < Area.Max.Y; ++WorldY)
 		{
-			const int WorldX = StartX + X;
-			const int WorldY = StartY + Y;
 			const int Height = FMath::Clamp(GetHeight(WorldX, WorldY), 0, SizeZ);
 
 			for (int Z = 0; Z < Height; ++Z)
 			{
-				NewChunk->SetVoxel(FIntVector(X, Y, Z), GetCubeTypeByHeight(Z));
+				WorldData.SetVoxel(FIntVector(WorldX, WorldY, Z), GetCubeTypeByHeight(Z));
 			}
 		}
 	}
-
-	Chunks.Add(ChunkPosition, MoveTemp(NewChunk));
-}
-
-FIntPoint AVoxelTerrain::GetChunkPosition(const FIntPoint& GridPosition) const
-{
-	return GetChunkPosition(FIntVector(GridPosition.X, GridPosition.Y, 0));
-}
-
-FIntPoint AVoxelTerrain::GetChunkPosition(const FIntVector& GridPosition) const
-{
-	check(ChunkSizeX > 0 && ChunkSizeY > 0);
-
-	return FIntPoint(	FMath::FloorToInt(static_cast<double>(GridPosition.X) / ChunkSizeX),
-						FMath::FloorToInt(static_cast<double>(GridPosition.Y) / ChunkSizeY));
-}
-
-FIntVector AVoxelTerrain::GetChunkLocalPosition(const FIntVector& GridPosition) const
-{
-	const FIntPoint ChunkPosition = GetChunkPosition(GridPosition);
-
-	return FIntVector(	GridPosition.X - ChunkPosition.X * ChunkSizeX,
-						GridPosition.Y - ChunkPosition.Y * ChunkSizeY,
-						GridPosition.Z								);
 }
 
 void AVoxelTerrain::SetPlayerPosition(const FVector& Pos)
 {
 	const FVector LocalPosition = GetActorTransform().InverseTransformPosition(Pos) / VoxelSize;
-	const FIntPoint GridPosition(FMath::FloorToInt(LocalPosition.X + 0.5), FMath::FloorToInt(LocalPosition.Y + 0.5));
-	const FIntPoint NewChunkPosition = GetChunkPosition(GridPosition);
-	if (PlayerChunk != NewChunkPosition)
+	const FIntPoint NewGridPosition(FMath::FloorToInt(LocalPosition.X + 0.5), FMath::FloorToInt(LocalPosition.Y + 0.5));
+	if (!WorldData.IsInSameRegion(PlayerGridPosition, NewGridPosition))
 	{
-		PlayerChunk = NewChunkPosition;
-		RenderChunks();
+		PlayerGridPosition = NewGridPosition;
+		RenderWorld();
 	}
 	VoxelCollision->SetPlayerPosition(Pos);
-}
-
-FChunk* AVoxelTerrain::FindChunk(const FIntPoint& ChunkPosition)
-{
-	TUniquePtr<FChunk>* FoundChunk = Chunks.Find(ChunkPosition);
-	return FoundChunk ? FoundChunk->Get() : nullptr;
-}
-
-const FChunk* AVoxelTerrain::FindChunk(const FIntPoint& ChunkPosition) const
-{
-	const TUniquePtr<FChunk>* FoundChunk = Chunks.Find(ChunkPosition);
-	return FoundChunk ? FoundChunk->Get() : nullptr;
-}
-
-FChunk* AVoxelTerrain::FindChunk(const FIntVector& ChunkPosition)
-{
-	return FindChunk({ ChunkPosition.X, ChunkPosition.Y});
-}
-
-const FChunk* AVoxelTerrain::FindChunk(const FIntVector& ChunkPosition) const
-{
-	return FindChunk({ ChunkPosition.X, ChunkPosition.Y });
-}
-
-TArray<FIntPoint> AVoxelTerrain::GetChunksForRender()
-{
-	TArray<FIntPoint> out;
-	for (int X = -RenderDistanceInChunks; X <= RenderDistanceInChunks; ++X)
-	{
-		for (int Y = -RenderDistanceInChunks; Y <= RenderDistanceInChunks; ++Y)
-		{
-			out.Add( PlayerChunk + FIntPoint{X, Y });
-		}
-	}
-
-	for (const auto& ChunksPos : out) {
-		if (!Chunks.Contains(ChunksPos)) {
-			GenerateChunk(ChunksPos);
-		}
-	}
-	return out;
 }
 
 void AVoxelTerrain::ApplySeed()
@@ -356,33 +280,21 @@ int AVoxelTerrain::GetHeight(const int X, const int Y) const
 
 FVector AVoxelTerrain::GetLocationAboveSurface(const int32 GridX, const int32 GridY) const
 {
-	if (Chunks.IsEmpty())
-	{
-		return FVector::ZeroVector;
-	}
-	const auto* Chunk = FindChunk(GetChunkPosition({ GridX,GridY }));
-	if (!Chunk)
-	{
-		return FVector::ZeroVector;
-	}
-	auto LocalChunkPos = GetChunkLocalPosition({ GridX, GridY, INDEX_NONE });
-
-	const FIntVector& ChunkSize = Chunk->GetSize();
-	if (LocalChunkPos.X < 0 || LocalChunkPos.X >= ChunkSize.X || LocalChunkPos.Y < 0 || LocalChunkPos.Y >= ChunkSize.Y)
+	if (WorldData.IsEmpty())
 	{
 		return FVector::ZeroVector;
 	}
 
-	for (int32 GridZ = ChunkSize.Z - 1; GridZ >= 0; --GridZ)
+	const TOptional<int32> SurfaceZ = WorldData.FindSurfaceZ(FIntPoint(GridX, GridY));
+	if (!SurfaceZ)
 	{
-		if (Chunk->HasVoxel(FIntVector(LocalChunkPos.X, LocalChunkPos.Y, GridZ)))
-		{
-			LocalChunkPos.Z = GridZ;
-			break;
-		}
+		return FVector::ZeroVector;
 	}
 
-	const FVector LocalLocation(static_cast<double>(GridX) * VoxelSize, static_cast<double>(GridY) * VoxelSize, static_cast<double>(LocalChunkPos.Z + 1) * VoxelSize);
+	const FVector LocalLocation(
+		static_cast<double>(GridX) * VoxelSize,
+		static_cast<double>(GridY) * VoxelSize,
+		static_cast<double>(*SurfaceZ + 1) * VoxelSize);
 	return GetActorTransform().TransformPosition(LocalLocation);
 }
 
@@ -399,91 +311,57 @@ FName AVoxelTerrain::GetCubeTypeByHeight(int32 height)
 	return NAME_None;
 }
 
-void AVoxelTerrain::RenderChunks()
+void AVoxelTerrain::RenderWorld()
 {
-	const TArray<FIntPoint> ChunkPositions = GetChunksForRender();
-	if (ChunkPositions.IsEmpty())
-	{
-		return;
-	}
+	WorldData.EnsureAreaAround(	PlayerGridPosition,	RenderDistanceInChunks, 
+								[this](const FIntRect& Area) { GenerateArea(Area); });
 
 	for (const auto& [Name, ManagerPtr] : VoxelInstanceManagers)
 	{
 		if (ManagerPtr)
 		{
-			TArray<FIntVector> Positions;
-			for (const FIntPoint& ChunkPosition : ChunkPositions)
-			{
-				const FChunk* ChunkPtr = FindChunk(ChunkPosition);
-				if (!ChunkPtr)
-				{
-					continue;
-				}
-
-				const FIntVector ChunkOffset(ChunkPosition.X * ChunkSizeX, ChunkPosition.Y * ChunkSizeY, 0);
-				const TArray<FIntVector> LocalPositions = ChunkPtr->GetVoxelLocalPositions(Name);
-
-				for (const FIntVector& LocalPosition : LocalPositions)
-				{
-					Positions.Add(ChunkOffset + LocalPosition);
-				}
-			}
-
-			ManagerPtr->SetCubes(Positions);
+			ManagerPtr->SetCubes(WorldData.GetVoxelPositionsAround(Name, PlayerGridPosition, RenderDistanceInChunks));
 		}
 	}
 }
 
 bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 {
-	if (Chunks.IsEmpty() || VoxelInstanceManagers.IsEmpty() || !CubeDefinitions)
-	{
-		return false;
-	}
-	auto* Chunk = FindChunk(GetChunkPosition(GridPosition));
-	if (!Chunk)
+	if (WorldData.IsEmpty() || VoxelInstanceManagers.IsEmpty() || !CubeDefinitions)
 	{
 		return false;
 	}
 
-	const FIntVector LocalChunkPos = GetChunkLocalPosition(GridPosition);
 	const TArray<FName> RowNames = CubeDefinitions->GetRowNames();
-	if (RowNames.IsEmpty() || !Chunk->SetVoxel(LocalChunkPos, GetCubeTypeByHeight(LocalChunkPos.Z)))
+	if (RowNames.IsEmpty() || !WorldData.SetVoxel(GridPosition, GetCubeTypeByHeight(GridPosition.Z)))
 	{
 		return false;
 	}
 
-	RenderChunks();
+	RenderWorld();
 	VoxelCollision->Refresh();
 	return true;
 }
 
 bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 {
-	if (Chunks.IsEmpty() || VoxelInstanceManagers.IsEmpty() || !CanRemoveCube(GridPosition))
+	if (WorldData.IsEmpty() || VoxelInstanceManagers.IsEmpty() || !CanRemoveCube(GridPosition))
 	{
 		return false;
 	}
-	auto* Chunk = FindChunk(GetChunkPosition(GridPosition));
-	if (!Chunk)
-	{
-		return false;
-	}
-	const FIntVector LocalChunkPos = GetChunkLocalPosition(GridPosition);
-	if (!Chunk->RemoveVoxel(LocalChunkPos))
+	if (!WorldData.RemoveVoxel(GridPosition))
 	{
 		return false;
 	}
 
-	RenderChunks();
+	RenderWorld();
 	VoxelCollision->Refresh();
 	return true;
 }
 
 bool AVoxelTerrain::HasVoxel(const FIntVector& GridPosition) const
 {
-	const FChunk* Chunk = FindChunk(GetChunkPosition(GridPosition));
-	return Chunk && Chunk->HasVoxel(GetChunkLocalPosition(GridPosition));
+	return WorldData.HasVoxel(GridPosition);
 }
 
 bool AVoxelTerrain::CanRemoveCube(const FIntVector& GridPosition) const
@@ -517,7 +395,7 @@ float AVoxelTerrain::GetMiningDuration(const FName Type)
 
 TOptional<FVoxelHit> AVoxelTerrain::TraceVoxel(const FVector& Start, const FVector& End) const
 {
-	if (Chunks.IsEmpty() || VoxelSize <= 0.0f)
+	if (WorldData.IsEmpty() || VoxelSize <= 0.0f)
 	{
 		return {};
 	}
@@ -542,13 +420,9 @@ TOptional<FVoxelHit> AVoxelTerrain::TraceVoxelGridDDA(const FVector& GridStart, 
 	FIntVector GridPosition(FMath::FloorToInt(GridStart.X + 0.5), FMath::FloorToInt(GridStart.Y + 0.5), FMath::FloorToInt(GridStart.Z + 0.5));
 
 	// The ray may start inside an occupied voxel.
-	if (const auto* Chunk = FindChunk(GetChunkPosition(GridPosition)))
+	if (const TOptional<FName> Type = WorldData.GetVoxelType(GridPosition))
 	{
-		const FIntVector LocalChunkPos = GetChunkLocalPosition(GridPosition);
-		if (const TOptional<FName> Type = Chunk->GetVoxelType(LocalChunkPos))
-		{
-			return FVoxelHit{GridPosition, FIntVector::ZeroValue, *Type};
-		}
+		return FVoxelHit{GridPosition, FIntVector::ZeroValue, *Type};
 	}
 
 	// Step stores the traversal direction for each axis: -1, 0, or 1.
@@ -594,13 +468,9 @@ TOptional<FVoxelHit> AVoxelTerrain::TraceVoxelGridDDA(const FVector& GridStart, 
 		GridPosition[NextAxis] += Step[NextAxis];
 		NextBoundaryParameter[NextAxis] += ParameterDelta[NextAxis];
 
-		if (const auto* Chunk = FindChunk(GetChunkPosition(GridPosition)))
+		if (const TOptional<FName> Type = WorldData.GetVoxelType(GridPosition))
 		{
-			const FIntVector LocalChunkPos = GetChunkLocalPosition(GridPosition);
-			if (const TOptional<FName> Type = Chunk->GetVoxelType(LocalChunkPos))
-			{
-				return FVoxelHit{GridPosition, CalculateVoxelHitNormal(PreviousGridPosition, GridPosition), *Type};
-			}
+			return FVoxelHit{GridPosition, CalculateVoxelHitNormal(PreviousGridPosition, GridPosition), *Type};
 		}
 	}
 

@@ -2,11 +2,11 @@
 
 #pragma once
 
-#include "Chunk.h"
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "VoxelInstanceRenderer.h"
 #include "GameplayTagContainer.h"
+#include "VoxelInstanceRenderer.h"
+#include "VoxelWorldData.h"
 #include "AVoxelTerrain.generated.h"
 
 class UDataTable;
@@ -60,19 +60,10 @@ protected:
 	virtual void BeginPlay() override;
 
 	void GenerateTerrain();
-	void GenerateChunk(const FIntPoint& ChunkPosition);
-	FIntPoint GetChunkPosition(const FIntPoint& GridPosition) const;
-	FIntPoint GetChunkPosition(const FIntVector& GridPosition) const;
-	FIntVector GetChunkLocalPosition(const FIntVector& GridPosition) const;
-	FChunk* FindChunk(const FIntPoint& ChunkPosition);
-	const FChunk* FindChunk(const FIntPoint& ChunkPosition) const;
-	FChunk* FindChunk(const FIntVector& ChunkPosition);
-	const FChunk* FindChunk(const FIntVector& ChunkPosition) const;
-	TArray<FIntPoint> GetChunksForRender();
-	bool IsVoxelVisible(const FIntVector& GridPosition) const;
+	void GenerateArea(const FIntRect& Area);
 
 	void ApplySeed();
-	void RenderChunks();
+	void RenderWorld();
 	void InitializeVoxelInstances();
 	void FillCubeTypesByLayer();
 	bool ValidateCubeDefinitions() const;
@@ -100,9 +91,9 @@ protected:
 
 	TMap<FGameplayTag, TArray<FName>> CubeTypesByLayer;
 
-	TMap<FIntPoint, TUniquePtr<FChunk>> Chunks;
+	FVoxelWorldData WorldData;
 
-	FIntPoint PlayerChunk = FIntPoint::ZeroValue;
+	FIntPoint PlayerGridPosition = FIntPoint::ZeroValue;
 
 public:	
 	// Called every frame
