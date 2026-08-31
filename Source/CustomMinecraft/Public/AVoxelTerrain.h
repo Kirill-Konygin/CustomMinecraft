@@ -59,6 +59,14 @@ protected:
 	virtual void BeginPlay() override;
 
 	void GenerateTerrain();
+	void GenerateChunk(const FIntPoint& ChunkPosition);
+	FIntPoint GetChunkPosition(const FIntPoint& GridPosition) const;
+	FIntPoint GetChunkPosition(const FIntVector& GridPosition) const;
+	FIntVector GetChunkLocalPosition(const FIntVector& GridPosition) const;
+	FChunk* FindChunk(const FIntPoint& ChunkPosition);
+	const FChunk* FindChunk(const FIntPoint& ChunkPosition) const;
+	FChunk* FindChunk(const FIntVector& ChunkPosition);
+	const FChunk* FindChunk(const FIntVector& ChunkPosition) const;
 	void ApplySeed();
 	void RenderChunk();
 	void InitializeVoxelInstances();
@@ -80,12 +88,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voxel Terrain|Cube Definitions")
 	TObjectPtr<UDataTable> CubeDefinitions;
 
-	TUniquePtr<FChunk> Chunk;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain|Layers", meta = (Categories = "World.Layer"))
 	TMap<FGameplayTag, FCubeHeightRange> LayerRanges;
 
 	TMap<FGameplayTag, TArray<FName>> CubeTypesByLayer;
+
+	TMap<FIntPoint, TUniquePtr<FChunk>> Chunks;
 
 public:	
 	// Called every frame
@@ -103,10 +111,16 @@ protected:
 	FVector2D NoiseOffset = FVector2D::ZeroVector;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1"))
-	int SizeX = 10;
+	int ChunksX = 10;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1"))
-	int SizeY = 10;
+	int ChunksY = 10;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain|Chunk", meta = (ClampMin = "1"))
+	int ChunkSizeX = 16;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain|Chunk", meta = (ClampMin = "1"))
+	int ChunkSizeY = 16;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1"))
 	int SizeZ = 32;
