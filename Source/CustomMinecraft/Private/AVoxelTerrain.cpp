@@ -9,7 +9,7 @@
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
 #include "String/LexFromString.h"
-#include "VoxelInstanceManager.h"
+#include "VoxelInstanceRenderer.h"
 
 namespace
 {
@@ -178,7 +178,7 @@ void AVoxelTerrain::InitializeVoxelInstances()
 			continue;
 		}
 
-		UVoxelInstanceManager* InstanceManager = NewObject<UVoxelInstanceManager>(this);
+		UVoxelInstanceRenderer* InstanceManager = NewObject<UVoxelInstanceRenderer>(this);
 		if (!InstanceManager)
 		{
 			continue;

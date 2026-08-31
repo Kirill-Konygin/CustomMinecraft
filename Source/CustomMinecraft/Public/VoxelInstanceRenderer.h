@@ -2,7 +2,7 @@
 
 #include "Components/ActorComponent.h"
 #include "CoreMinimal.h"
-#include "VoxelInstanceManager.generated.h"
+#include "VoxelInstanceRenderer.generated.h"
 
 class UInstancedStaticMeshComponent;
 class UStaticMesh;
@@ -16,12 +16,12 @@ struct FVoxelInstanceHit
 };
 
 UCLASS(ClassGroup = (Voxel), meta = (BlueprintSpawnableComponent))
-class CUSTOMMINECRAFT_API UVoxelInstanceManager final : public UActorComponent
+class CUSTOMMINECRAFT_API UVoxelInstanceRenderer final : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:
-	UVoxelInstanceManager();
+	UVoxelInstanceRenderer();
 
 	void Initialize(const FCubeDefinition& InCubeDefinition, float InVoxelSize);
 	void SetCubes(TConstArrayView<FIntVector> GridPositions);

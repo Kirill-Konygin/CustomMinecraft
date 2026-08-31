@@ -5,7 +5,7 @@
 #include "Chunk.h"
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "VoxelInstanceManager.h"
+#include "VoxelInstanceRenderer.h"
 #include "GameplayTagContainer.h"
 #include "AVoxelTerrain.generated.h"
 
@@ -86,7 +86,7 @@ protected:
 	TObjectPtr<USceneComponent> SceneRoot;
 
 	UPROPERTY()
-	TMap<FName, TObjectPtr<UVoxelInstanceManager>> VoxelInstanceManagers;
+	TMap<FName, TObjectPtr<UVoxelInstanceRenderer>> VoxelInstanceManagers;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voxel Terrain|Cube Definitions")
 	TObjectPtr<UDataTable> CubeDefinitions;

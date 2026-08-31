@@ -1,4 +1,4 @@
-#include "VoxelInstanceManager.h"
+#include "VoxelInstanceRenderer.h"
 
 #include "CollisionQueryParams.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -8,7 +8,7 @@
 #include "GameFramework/Actor.h"
 #include "UObject/ConstructorHelpers.h"
 
-UVoxelInstanceManager::UVoxelInstanceManager()
+UVoxelInstanceRenderer::UVoxelInstanceRenderer()
 {
 	PrimaryComponentTick.bCanEverTick = false;
 
@@ -19,7 +19,7 @@ UVoxelInstanceManager::UVoxelInstanceManager()
 	}
 }
 
-void UVoxelInstanceManager::Initialize(const FCubeDefinition& InCubeDefinition, const float InVoxelSize)
+void UVoxelInstanceRenderer::Initialize(const FCubeDefinition& InCubeDefinition, const float InVoxelSize)
 {
 	check(InVoxelSize > 0.0f);
 	VoxelSize = InVoxelSize;
@@ -31,7 +31,7 @@ void UVoxelInstanceManager::Initialize(const FCubeDefinition& InCubeDefinition, 
 	}
 }
 
-void UVoxelInstanceManager::OnRegister()
+void UVoxelInstanceRenderer::OnRegister()
 {
 	Super::OnRegister();
 	CreateVoxelMesh();
@@ -50,7 +50,7 @@ void UVoxelInstanceManager::OnRegister()
 	}
 }
 
-void UVoxelInstanceManager::OnUnregister()
+void UVoxelInstanceRenderer::OnUnregister()
 {
 	if (VoxelMesh && VoxelMesh->IsRegistered())
 	{
@@ -60,7 +60,7 @@ void UVoxelInstanceManager::OnUnregister()
 	Super::OnUnregister();
 }
 
-void UVoxelInstanceManager::OnComponentDestroyed(const bool bDestroyingHierarchy)
+void UVoxelInstanceRenderer::OnComponentDestroyed(const bool bDestroyingHierarchy)
 {
 	if (VoxelMesh && !VoxelMesh->IsBeingDestroyed())
 	{
@@ -71,7 +71,7 @@ void UVoxelInstanceManager::OnComponentDestroyed(const bool bDestroyingHierarchy
 	Super::OnComponentDestroyed(bDestroyingHierarchy);
 }
 
-void UVoxelInstanceManager::CreateVoxelMesh()
+void UVoxelInstanceRenderer::CreateVoxelMesh()
 {
 	if (VoxelMesh && VoxelMesh->IsBeingDestroyed())
 	{
@@ -91,7 +91,7 @@ void UVoxelInstanceManager::CreateVoxelMesh()
 
 	VoxelMesh = NewObject<UInstancedStaticMeshComponent>(this, TEXT("VoxelMesh"));
 	VoxelMesh->SetCanEverAffectNavigation(false);
-	VoxelMesh->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+	VoxelMesh->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
 	VoxelMesh->SetRemoveSwap();
 	VoxelMesh->SetStaticMesh(CubeMesh);
 	if (const USceneComponent* RootComponent = Owner->GetRootComponent())
@@ -103,12 +103,12 @@ void UVoxelInstanceManager::CreateVoxelMesh()
 	Owner->AddInstanceComponent(VoxelMesh);
 }
 
-bool UVoxelInstanceManager::IsReady() const
+bool UVoxelInstanceRenderer::IsReady() const
 {
 	return VoxelMesh && VoxelMesh->GetStaticMesh();
 }
 
-void UVoxelInstanceManager::SetCubes(const TConstArrayView<FIntVector> GridPositions)
+void UVoxelInstanceRenderer::SetCubes(const TConstArrayView<FIntVector> GridPositions)
 {
 	if (!IsReady())
 	{
@@ -194,7 +194,7 @@ void UVoxelInstanceManager::SetCubes(const TConstArrayView<FIntVector> GridPosit
 	}
 }
 
-bool UVoxelInstanceManager::DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, const float SphereRadius) const
+bool UVoxelInstanceRenderer::DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, const float SphereRadius) const
 {
 	if (!IsReady())
 	{
@@ -207,7 +207,7 @@ bool UVoxelInstanceManager::DoesCubeOverlapSphere(const FIntVector& GridPosition
 	return FMath::SphereAABBIntersection(SphereCenter, FMath::Square(static_cast<double>(SphereRadius)), CubeBounds);
 }
 
-TOptional<FVoxelInstanceHit> UVoxelInstanceManager::TraceVoxel(const FVector& Start, const FVector& End) const
+TOptional<FVoxelInstanceHit> UVoxelInstanceRenderer::TraceVoxel(const FVector& Start, const FVector& End) const
 {
 	if (!IsReady())
 	{
@@ -228,7 +228,7 @@ TOptional<FVoxelInstanceHit> UVoxelInstanceManager::TraceVoxel(const FVector& St
 								HitResult.Distance};
 }
 
-FTransform UVoxelInstanceManager::MakeCubeTransform(const FIntVector& GridPosition) const
+FTransform UVoxelInstanceRenderer::MakeCubeTransform(const FIntVector& GridPosition) const
 {
 	const FVector Location(
 		static_cast<double>(GridPosition.X) * VoxelSize,
