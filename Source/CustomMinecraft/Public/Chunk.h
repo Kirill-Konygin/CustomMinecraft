@@ -26,6 +26,7 @@ private:
 	int32 GetVoxelIndex(const FIntVector& LocalPosition) const;
 	FPaletteIndex GetVoxelPaletteIndex(const FIntVector& LocalPosition) const;
 	FPaletteIndex FindOrAddPaletteIndex(FName CubeId);
+	bool HasAnyEmptyNeighbor(int32 Index) const;
 
 	FIntVector Size = FIntVector(1, 1, 1);
 	TArray<FName> Palette;
