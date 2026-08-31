@@ -113,7 +113,7 @@ void APlayerPawn::Move(const FInputActionValue& Value)
 
 		if (VoxelTerrain)
 		{
-			VoxelTerrain->SetPlayerChunk(GetActorLocation());
+			VoxelTerrain->SetPlayerPosition(GetActorLocation());
 		}
 	}
 }

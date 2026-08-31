@@ -9,6 +9,7 @@
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
 #include "String/LexFromString.h"
+#include "VoxelInstanceCollision.h"
 #include "VoxelInstanceRenderer.h"
 
 namespace
@@ -121,6 +122,8 @@ AVoxelTerrain::AVoxelTerrain()
 	SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
 	SceneRoot->SetMobility(EComponentMobility::Static);
 	SetRootComponent(SceneRoot);
+
+	VoxelCollision = CreateDefaultSubobject<UVoxelInstanceCollision>(TEXT("VoxelCollision"));
 }
 
 // Called when the game starts or when spawned
@@ -134,6 +137,7 @@ void AVoxelTerrain::BeginPlay()
 	}
 
 	InitializeVoxelInstances();
+	VoxelCollision->Initialize(VoxelSize);
 	FillCubeTypesByLayer();
 	GenerateTerrain();
 	OnTerrainGenerated.Broadcast();
@@ -217,6 +221,7 @@ void AVoxelTerrain::GenerateTerrain()
 {
 	ApplySeed();
 	RenderChunks();
+	VoxelCollision->Refresh();
 }
 
 void AVoxelTerrain::GenerateChunk(const FIntPoint& ChunkPosition)
@@ -270,23 +275,17 @@ FIntVector AVoxelTerrain::GetChunkLocalPosition(const FIntVector& GridPosition) 
 						GridPosition.Z								);
 }
 
-void AVoxelTerrain::SetPlayerChunk(const FVector& Pos)
+void AVoxelTerrain::SetPlayerPosition(const FVector& Pos)
 {
-	if (VoxelSize <= 0.0f)
-	{
-		return;
-	}
-
 	const FVector LocalPosition = GetActorTransform().InverseTransformPosition(Pos) / VoxelSize;
 	const FIntPoint GridPosition(FMath::FloorToInt(LocalPosition.X + 0.5), FMath::FloorToInt(LocalPosition.Y + 0.5));
 	const FIntPoint NewChunkPosition = GetChunkPosition(GridPosition);
-	if (PlayerChunk == NewChunkPosition)
+	if (PlayerChunk != NewChunkPosition)
 	{
-		return;
+		PlayerChunk = NewChunkPosition;
+		RenderChunks();
 	}
-
-	PlayerChunk = NewChunkPosition;
-	RenderChunks();
+	VoxelCollision->SetPlayerPosition(Pos);
 }
 
 FChunk* AVoxelTerrain::FindChunk(const FIntPoint& ChunkPosition)
@@ -455,6 +454,7 @@ bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 	}
 
 	RenderChunks();
+	VoxelCollision->Refresh();
 	return true;
 }
 
@@ -476,7 +476,14 @@ bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 	}
 
 	RenderChunks();
+	VoxelCollision->Refresh();
 	return true;
+}
+
+bool AVoxelTerrain::HasVoxel(const FIntVector& GridPosition) const
+{
+	const FChunk* Chunk = FindChunk(GetChunkPosition(GridPosition));
+	return Chunk && Chunk->HasVoxel(GetChunkLocalPosition(GridPosition));
 }
 
 bool AVoxelTerrain::CanRemoveCube(const FIntVector& GridPosition) const

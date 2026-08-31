@@ -11,6 +11,7 @@
 
 class UDataTable;
 class USceneComponent;
+class UVoxelInstanceCollision;
 struct FCubeDefinition;
 
 struct FVoxelHit
@@ -88,6 +89,9 @@ protected:
 	UPROPERTY()
 	TMap<FName, TObjectPtr<UVoxelInstanceRenderer>> VoxelInstanceManagers;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Voxel Terrain|Collision")
+	TObjectPtr<UVoxelInstanceCollision> VoxelCollision;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Voxel Terrain|Cube Definitions")
 	TObjectPtr<UDataTable> CubeDefinitions;
 
@@ -105,7 +109,8 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	bool AddCube(const FIntVector& GridPosition);
 	bool RemoveCube(const FIntVector& GridPosition);
-	void SetPlayerChunk(const FVector& Pos);
+	bool HasVoxel(const FIntVector& GridPosition) const;
+	void SetPlayerPosition(const FVector& Pos);
 	float GetMiningDuration(FName Type);
 	bool DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, float SphereRadius) const;
 	TOptional<FVoxelHit> TraceVoxel(const FVector& Start, const FVector& End) const;
