@@ -95,9 +95,7 @@ protected:
 
 	FIntPoint PlayerGridPosition = FIntPoint::ZeroValue;
 
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
+public:
 	bool AddCube(const FIntVector& GridPosition);
 	bool RemoveCube(const FIntVector& GridPosition);
 	bool HasVoxel(const FIntVector& GridPosition) const;

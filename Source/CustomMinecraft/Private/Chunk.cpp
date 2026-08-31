@@ -69,21 +69,6 @@ bool FChunk::RemoveVoxel(const FIntVector& LocalPosition)
 	return SetVoxel(LocalPosition, NAME_None);
 }
 
-TArray<FIntVector> FChunk::GetVoxelLocalPositions() const
-{
-	TArray<FIntVector> LocalPositions;
-
-	for (int32 Index = 0; Index < Voxels.Num(); ++Index)
-	{
-		if (Voxels[Index] != EmptyPaletteIndex && HasAnyEmptyNeighbor(Index))
-		{
-			LocalPositions.Add(GetLocalPosition(Index));
-		}
-	}
-
-	return LocalPositions;
-}
-
 TArray<FIntVector> FChunk::GetVoxelLocalPositions(const FName CubeId) const
 {
 	TArray<FIntVector> LocalPositions;

@@ -71,10 +71,7 @@ protected:
 	float MiningTimeRemaining = 0.f;
 	float MiningDuration = 0.f;
 
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
-
+public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 

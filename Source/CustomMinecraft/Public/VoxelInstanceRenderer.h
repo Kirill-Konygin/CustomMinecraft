@@ -8,13 +8,6 @@ class UInstancedStaticMeshComponent;
 class UStaticMesh;
 struct FCubeDefinition;
 
-struct FVoxelInstanceHit
-{
-	FIntVector Position = FIntVector::ZeroValue;
-	FIntVector Normal = FIntVector::ZeroValue;
-	float Distance = 0.0f;
-};
-
 UCLASS(ClassGroup = (Voxel), meta = (BlueprintSpawnableComponent))
 class CUSTOMMINECRAFT_API UVoxelInstanceRenderer final : public UActorComponent
 {
@@ -25,7 +18,6 @@ public:
 
 	void Initialize(const FCubeDefinition& InCubeDefinition, float InVoxelSize);
 	void SetCubes(TConstArrayView<FIntVector> GridPositions);
-	TOptional<FVoxelInstanceHit> TraceVoxel(const FVector& Start, const FVector& End) const;
 
 protected:
 	virtual void OnRegister() override;

@@ -7,7 +7,6 @@ class CUSTOMMINECRAFT_API FChunk final
 public:
 	explicit FChunk(const FIntVector& InSize);
 
-	const FIntVector& GetSize() const { return Size; }
 	FIntVector GetLocalPosition(int32 Index) const;
 
 	bool IsValidLocalPosition(const FIntVector& LocalPosition) const;
@@ -16,7 +15,6 @@ public:
 	bool SetVoxel(const FIntVector& LocalPosition, FName CubeId);
 	bool RemoveVoxel(const FIntVector& LocalPosition);
 
-	TArray<FIntVector> GetVoxelLocalPositions() const;
 	TArray<FIntVector> GetVoxelLocalPositions(FName CubeId) const;
 
 private:

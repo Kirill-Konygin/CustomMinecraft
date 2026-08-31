@@ -1,6 +1,5 @@
 #include "VoxelInstanceRenderer.h"
 
-#include "CollisionQueryParams.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "CubeDefinition.h"
 #include "Engine/CollisionProfile.h"
@@ -215,27 +214,6 @@ void UVoxelInstanceRenderer::AddMissingInstances(const TSet<FIntVector>& Desired
 		InstanceIndexByGridPosition.Add(GridPosition, InstanceIndex);
 		GridPositionByInstanceIndex[InstanceIndex] = GridPosition;
 	}
-}
-
-TOptional<FVoxelInstanceHit> UVoxelInstanceRenderer::TraceVoxel(const FVector& Start, const FVector& End) const
-{
-	if (!IsReady())
-	{
-		return {};
-	}
-
-	FHitResult HitResult;
-	if (	!VoxelMesh->LineTraceComponent(HitResult, Start, End, FCollisionQueryParams::DefaultQueryParam) 
-		||	!GridPositionByInstanceIndex.IsValidIndex(HitResult.Item))
-	{
-		return {};
-	}
-
-	const FVector LocalNormal = VoxelMesh->GetComponentTransform().InverseTransformVectorNoScale(HitResult.ImpactNormal);
-
-	return FVoxelInstanceHit{	GridPositionByInstanceIndex[HitResult.Item],	FIntVector( FMath::RoundToInt(LocalNormal.X),
-								FMath::RoundToInt(LocalNormal.Y),				FMath::RoundToInt(LocalNormal.Z)),
-								HitResult.Distance};
 }
 
 FTransform UVoxelInstanceRenderer::MakeCubeTransform(const FIntVector& GridPosition) const

@@ -468,10 +468,3 @@ TOptional<FVoxelHit> AVoxelTerrain::TraceVoxelGridDDA(const FVector& GridStart, 
 
 	return {};
 }
-
-// Called every frame
-void AVoxelTerrain::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-}
