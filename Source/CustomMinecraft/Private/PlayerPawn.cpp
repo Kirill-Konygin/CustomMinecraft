@@ -49,7 +49,6 @@ void APlayerPawn::BeginPlay()
 void APlayerPawn::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
 }
 
 // Called to bind functionality to input
@@ -111,6 +110,11 @@ void APlayerPawn::Move(const FInputActionValue& Value)
 		AddMovementInput(ForwardDirection, MoveValue.X);
 		AddMovementInput(RightDirection, MoveValue.Y);
 		AddMovementInput(FVector::UpVector, MoveValue.Z);
+
+		if (VoxelTerrain)
+		{
+			VoxelTerrain->SetPlayerChunk(GetActorLocation());
+		}
 	}
 }
 

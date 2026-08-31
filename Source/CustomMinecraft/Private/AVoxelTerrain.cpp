@@ -216,30 +216,7 @@ void AVoxelTerrain::FillCubeTypesByLayer()
 void AVoxelTerrain::GenerateTerrain()
 {
 	ApplySeed();
-
-	//Chunk = MakeUnique<FChunk>(FIntVector(SizeX, SizeY, SizeZ));
-	if (!CubeDefinitions)
-	{
-		RenderChunk();
-		return;
-	}
-
-	const TArray<FName> RowNames = CubeDefinitions->GetRowNames();
-	if (RowNames.IsEmpty())
-	{
-		RenderChunk();
-		return;
-	}
-
-	for (int X = 0; X < ChunksX; ++X)
-	{
-		for (int Y = 0; Y < ChunksY; ++Y)
-		{
-			GenerateChunk({ X, Y });
-		}
-	}
-
-	RenderChunk();
+	RenderChunks();
 }
 
 void AVoxelTerrain::GenerateChunk(const FIntPoint& ChunkPosition)
@@ -293,6 +270,25 @@ FIntVector AVoxelTerrain::GetChunkLocalPosition(const FIntVector& GridPosition) 
 						GridPosition.Z								);
 }
 
+void AVoxelTerrain::SetPlayerChunk(const FVector& Pos)
+{
+	if (VoxelSize <= 0.0f)
+	{
+		return;
+	}
+
+	const FVector LocalPosition = GetActorTransform().InverseTransformPosition(Pos) / VoxelSize;
+	const FIntPoint GridPosition(FMath::FloorToInt(LocalPosition.X + 0.5), FMath::FloorToInt(LocalPosition.Y + 0.5));
+	const FIntPoint NewChunkPosition = GetChunkPosition(GridPosition);
+	if (PlayerChunk == NewChunkPosition)
+	{
+		return;
+	}
+
+	PlayerChunk = NewChunkPosition;
+	RenderChunks();
+}
+
 FChunk* AVoxelTerrain::FindChunk(const FIntPoint& ChunkPosition)
 {
 	TUniquePtr<FChunk>* FoundChunk = Chunks.Find(ChunkPosition);
@@ -313,6 +309,25 @@ FChunk* AVoxelTerrain::FindChunk(const FIntVector& ChunkPosition)
 const FChunk* AVoxelTerrain::FindChunk(const FIntVector& ChunkPosition) const
 {
 	return FindChunk({ ChunkPosition.X, ChunkPosition.Y });
+}
+
+TArray<FIntPoint> AVoxelTerrain::GetChunksForRender()
+{
+	TArray<FIntPoint> out;
+	for (int X = -RenderDistanceInChunks; X <= RenderDistanceInChunks; ++X)
+	{
+		for (int Y = -RenderDistanceInChunks; Y <= RenderDistanceInChunks; ++Y)
+		{
+			out.Add( PlayerChunk + FIntPoint{X, Y });
+		}
+	}
+
+	for (const auto& ChunksPos : out) {
+		if (!Chunks.Contains(ChunksPos)) {
+			GenerateChunk(ChunksPos);
+		}
+	}
+	return out;
 }
 
 void AVoxelTerrain::ApplySeed()
@@ -385,9 +400,10 @@ FName AVoxelTerrain::GetCubeTypeByHeight(int32 height)
 	return NAME_None;
 }
 
-void AVoxelTerrain::RenderChunk()
+void AVoxelTerrain::RenderChunks()
 {
-	if (Chunks.IsEmpty())
+	const TArray<FIntPoint> ChunkPositions = GetChunksForRender();
+	if (ChunkPositions.IsEmpty())
 	{
 		return;
 	}
@@ -397,8 +413,14 @@ void AVoxelTerrain::RenderChunk()
 		if (ManagerPtr)
 		{
 			TArray<FIntVector> Positions;
-			for (const auto& [ChunkPosition, ChunkPtr] : Chunks)
+			for (const FIntPoint& ChunkPosition : ChunkPositions)
 			{
+				const FChunk* ChunkPtr = FindChunk(ChunkPosition);
+				if (!ChunkPtr)
+				{
+					continue;
+				}
+
 				const FIntVector ChunkOffset(ChunkPosition.X * ChunkSizeX, ChunkPosition.Y * ChunkSizeY, 0);
 				const TArray<FIntVector> LocalPositions = ChunkPtr->GetVoxelLocalPositions(Name);
 
@@ -432,7 +454,7 @@ bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 		return false;
 	}
 
-	RenderChunk();
+	RenderChunks();
 	return true;
 }
 
@@ -453,7 +475,7 @@ bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 		return false;
 	}
 
-	RenderChunk();
+	RenderChunks();
 	return true;
 }
 

@@ -67,8 +67,11 @@ protected:
 	const FChunk* FindChunk(const FIntPoint& ChunkPosition) const;
 	FChunk* FindChunk(const FIntVector& ChunkPosition);
 	const FChunk* FindChunk(const FIntVector& ChunkPosition) const;
+	TArray<FIntPoint> GetChunksForRender();
+	bool IsVoxelVisible(const FIntVector& GridPosition) const;
+
 	void ApplySeed();
-	void RenderChunk();
+	void RenderChunks();
 	void InitializeVoxelInstances();
 	void FillCubeTypesByLayer();
 	bool ValidateCubeDefinitions() const;
@@ -95,11 +98,14 @@ protected:
 
 	TMap<FIntPoint, TUniquePtr<FChunk>> Chunks;
 
+	FIntPoint PlayerChunk = FIntPoint::ZeroValue;
+
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 	bool AddCube(const FIntVector& GridPosition);
 	bool RemoveCube(const FIntVector& GridPosition);
+	void SetPlayerChunk(const FVector& Pos);
 	float GetMiningDuration(FName Type);
 	bool DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, float SphereRadius) const;
 	TOptional<FVoxelHit> TraceVoxel(const FVector& Start, const FVector& End) const;
@@ -110,11 +116,8 @@ protected:
 
 	FVector2D NoiseOffset = FVector2D::ZeroVector;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1"))
-	int ChunksX = 10;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain", meta = (ClampMin = "1"))
-	int ChunksY = 10;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain|Chunk", meta = (ClampMin = "0"))
+	int RenderDistanceInChunks = 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Voxel Terrain|Chunk", meta = (ClampMin = "1"))
 	int ChunkSizeX = 16;

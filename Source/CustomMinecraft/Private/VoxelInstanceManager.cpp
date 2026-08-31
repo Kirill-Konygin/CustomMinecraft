@@ -90,6 +90,7 @@ void UVoxelInstanceManager::CreateVoxelMesh()
 	}
 
 	VoxelMesh = NewObject<UInstancedStaticMeshComponent>(this, TEXT("VoxelMesh"));
+	VoxelMesh->SetCanEverAffectNavigation(false);
 	VoxelMesh->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
 	VoxelMesh->SetRemoveSwap();
 	VoxelMesh->SetStaticMesh(CubeMesh);
@@ -121,58 +122,52 @@ void UVoxelInstanceManager::SetCubes(const TConstArrayView<FIntVector> GridPosit
 		DesiredGridPositions.Add(GridPosition);
 	}
 
-	TArray<FIntVector> GridPositionsToRemove;
-	GridPositionsToRemove.Reserve(InstanceIndexByGridPosition.Num());
+	TArray<int32> InstanceIndicesToRemove;
+	InstanceIndicesToRemove.Reserve(InstanceIndexByGridPosition.Num());
 	for (const auto& [GridPosition, InstanceIndex] : InstanceIndexByGridPosition)
 	{
 		if (!DesiredGridPositions.Contains(GridPosition))
 		{
-			GridPositionsToRemove.Add(GridPosition);
+			InstanceIndicesToRemove.Add(InstanceIndex);
 		}
 	}
 
-	for (const FIntVector& GridPosition : GridPositionsToRemove)
+	if (!InstanceIndicesToRemove.IsEmpty())
 	{
-		const int32* InstanceIndexPtr = InstanceIndexByGridPosition.Find(GridPosition);
-		if (!InstanceIndexPtr)
+		InstanceIndicesToRemove.Sort(TGreater<int32>());
+		if (!VoxelMesh->RemoveInstances(InstanceIndicesToRemove, true))
 		{
-			continue;
+			return;
 		}
 
-		const int32 InstanceIndex = *InstanceIndexPtr;
-		const int32 LastInstanceIndex = GridPositionByInstanceIndex.Num() - 1;
-		if (!GridPositionByInstanceIndex.IsValidIndex(InstanceIndex))
+		for (const int32 InstanceIndex : InstanceIndicesToRemove)
 		{
-			continue;
+			if (GridPositionByInstanceIndex.IsValidIndex(InstanceIndex))
+			{
+				GridPositionByInstanceIndex.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
+			}
 		}
 
-		const FIntVector MovedGridPosition = GridPositionByInstanceIndex[LastInstanceIndex];
-		if (!VoxelMesh->RemoveInstance(InstanceIndex))
+		InstanceIndexByGridPosition.Reset();
+		InstanceIndexByGridPosition.Reserve(GridPositionByInstanceIndex.Num());
+		for (int32 InstanceIndex = 0; InstanceIndex < GridPositionByInstanceIndex.Num(); ++InstanceIndex)
 		{
-			continue;
-		}
-
-		InstanceIndexByGridPosition.Remove(GridPosition);
-		GridPositionByInstanceIndex.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
-		if (InstanceIndex != LastInstanceIndex)
-		{
-			InstanceIndexByGridPosition[MovedGridPosition] = InstanceIndex;
+			InstanceIndexByGridPosition.Add(GridPositionByInstanceIndex[InstanceIndex], InstanceIndex);
 		}
 	}
 
 	TArray<FTransform> Transforms;
-	Transforms.Reserve(GridPositions.Num());
 	TArray<FIntVector> GridPositionsToAdd;
-	GridPositionsToAdd.Reserve(GridPositions.Num());
-	TSet<FIntVector> PendingGridPositions;
+	Transforms.Reserve(DesiredGridPositions.Num());
+	GridPositionsToAdd.Reserve(DesiredGridPositions.Num());
 
-	for (const FIntVector& GridPosition : GridPositions)
+	for (const FIntVector& GridPosition : DesiredGridPositions)
 	{
-		if (InstanceIndexByGridPosition.Contains(GridPosition) || PendingGridPositions.Contains(GridPosition))
+		if (InstanceIndexByGridPosition.Contains(GridPosition))
 		{
 			continue;
 		}
-		PendingGridPositions.Add(GridPosition);
+
 		GridPositionsToAdd.Add(GridPosition);
 		Transforms.Emplace(MakeCubeTransform(GridPosition));
 	}
@@ -182,7 +177,7 @@ void UVoxelInstanceManager::SetCubes(const TConstArrayView<FIntVector> GridPosit
 		return;
 	}
 
-	const TArray<int32> NewInstanceIndices = VoxelMesh->AddInstances(Transforms, true);
+	const TArray<int32> NewInstanceIndices = VoxelMesh->AddInstances(Transforms, true, false, false);
 	GridPositionByInstanceIndex.SetNum(VoxelMesh->GetInstanceCount());
 
 	for (int32 Index = 0; Index < NewInstanceIndices.Num(); ++Index)
