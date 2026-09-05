@@ -24,9 +24,9 @@ void UVoxelInstanceRenderer::Initialize(const FCubeDefinition& InCubeDefinition,
 	VoxelSize = InVoxelSize;
 	CreateVoxelMesh();
 
-	if (VoxelMesh && InCubeDefinition.Material)
+	if (VoxelMeshComponent && InCubeDefinition.Material)
 	{
-		VoxelMesh->SetMaterial(0, InCubeDefinition.Material);
+		VoxelMeshComponent->SetMaterial(0, InCubeDefinition.Material);
 	}
 }
 
@@ -35,25 +35,25 @@ void UVoxelInstanceRenderer::OnRegister()
 	Super::OnRegister();
 	CreateVoxelMesh();
 
-	if (VoxelMesh && !VoxelMesh->IsRegistered())
+	if (VoxelMeshComponent && !VoxelMeshComponent->IsRegistered())
 	{
 		if (const AActor* Owner = GetOwner())
 		{
 			if (const USceneComponent* RootComponent = Owner->GetRootComponent())
 			{
-				VoxelMesh->SetMobility(RootComponent->GetMobility());
-				VoxelMesh->SetupAttachment(Owner->GetRootComponent());
+				VoxelMeshComponent->SetMobility(RootComponent->GetMobility());
+				VoxelMeshComponent->SetupAttachment(Owner->GetRootComponent());
 			}
 		}
-		VoxelMesh->RegisterComponent();
+		VoxelMeshComponent->RegisterComponent();
 	}
 }
 
 void UVoxelInstanceRenderer::OnUnregister()
 {
-	if (VoxelMesh && VoxelMesh->IsRegistered())
+	if (VoxelMeshComponent && VoxelMeshComponent->IsRegistered())
 	{
-		VoxelMesh->UnregisterComponent();
+		VoxelMeshComponent->UnregisterComponent();
 	}
 
 	Super::OnUnregister();
@@ -61,23 +61,23 @@ void UVoxelInstanceRenderer::OnUnregister()
 
 void UVoxelInstanceRenderer::OnComponentDestroyed(const bool bDestroyingHierarchy)
 {
-	if (VoxelMesh && !VoxelMesh->IsBeingDestroyed())
+	if (VoxelMeshComponent && !VoxelMeshComponent->IsBeingDestroyed())
 	{
-		VoxelMesh->DestroyComponent();
+		VoxelMeshComponent->DestroyComponent();
 	}
-	VoxelMesh = nullptr;
+	VoxelMeshComponent = nullptr;
 
 	Super::OnComponentDestroyed(bDestroyingHierarchy);
 }
 
 void UVoxelInstanceRenderer::CreateVoxelMesh()
 {
-	if (VoxelMesh && VoxelMesh->IsBeingDestroyed())
+	if (VoxelMeshComponent && VoxelMeshComponent->IsBeingDestroyed())
 	{
-		VoxelMesh = nullptr;
+		VoxelMeshComponent = nullptr;
 	}
 
-	if (VoxelMesh || !IsRegistered())
+	if (VoxelMeshComponent || !IsRegistered())
 	{
 		return;
 	}
@@ -88,141 +88,67 @@ void UVoxelInstanceRenderer::CreateVoxelMesh()
 		return;
 	}
 
-	VoxelMesh = NewObject<UInstancedStaticMeshComponent>(this, TEXT("VoxelMesh"));
-	VoxelMesh->SetCanEverAffectNavigation(false);
-	VoxelMesh->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
-	VoxelMesh->SetRemoveSwap();
-	VoxelMesh->SetStaticMesh(CubeMesh);
+	VoxelMeshComponent = NewObject<UInstancedStaticMeshComponent>(this, TEXT("VoxelMesh"));
+	VoxelMeshComponent->SetCanEverAffectNavigation(false);
+	VoxelMeshComponent->SetCollisionProfileName(UCollisionProfile::NoCollision_ProfileName);
+	VoxelMeshComponent->SetRemoveSwap();
+	VoxelMeshComponent->SetStaticMesh(CubeMesh);
 	if (const USceneComponent* RootComponent = Owner->GetRootComponent())
 	{
-		VoxelMesh->SetMobility(RootComponent->GetMobility());
-		VoxelMesh->SetupAttachment(Owner->GetRootComponent());
+		VoxelMeshComponent->SetMobility(RootComponent->GetMobility());
+		VoxelMeshComponent->SetupAttachment(Owner->GetRootComponent());
 	}
-	VoxelMesh->RegisterComponent();
-	Owner->AddInstanceComponent(VoxelMesh);
+	VoxelMeshComponent->RegisterComponent();
+	Owner->AddInstanceComponent(VoxelMeshComponent);
 }
 
 bool UVoxelInstanceRenderer::IsReady() const
 {
-	return VoxelMesh && VoxelMesh->GetStaticMesh();
+	return VoxelMeshComponent && VoxelMeshComponent->GetStaticMesh();
 }
 
 void UVoxelInstanceRenderer::SetCubes(const TConstArrayView<FIntVector> GridPositions)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SetCubes);
 	if (!IsReady())
 	{
 		return;
 	}
 
-	TSet<FIntVector> DesiredGridPositions;
-	DesiredGridPositions.Reserve(GridPositions.Num());
-	for (const FIntVector& GridPosition : GridPositions)
-	{
-		DesiredGridPositions.Add(GridPosition);
+	TSet<FIntVector> DesiredGridPositions(GridPositions);
+	TSet<FIntVector> CurrentGridPositions;
+	CurrentGridPositions.Reserve(InstanceIdByGridPosition.Num());
+	InstanceIdByGridPosition.GetKeys(CurrentGridPositions);
+
+	TArray<FPrimitiveInstanceId> InstanceIdsToRemove;
+	
+	const TSet<FIntVector> GridPositionsToRemove = CurrentGridPositions.Difference(DesiredGridPositions);
+	const TArray<FIntVector> GridPositionsToAdd = DesiredGridPositions.Difference(CurrentGridPositions).Array();
+
+	InstanceIdsToRemove.Reserve(GridPositionsToRemove.Num());
+	for (const auto& GridPosition : GridPositionsToRemove) {
+		InstanceIdsToRemove.Add(InstanceIdByGridPosition.FindRef(GridPosition));
+		InstanceIdByGridPosition.Remove(GridPosition);
 	}
+	VoxelMeshComponent->RemoveInstancesById(InstanceIdsToRemove);
 
-	if (!RemoveObsoleteInstances(DesiredGridPositions))
-	{
-		return;
-	}
-
-	AddMissingInstances(DesiredGridPositions);
-}
-
-bool UVoxelInstanceRenderer::RemoveObsoleteInstances(const TSet<FIntVector>& DesiredGridPositions)
-{
-	TArray<int32> InstanceIndicesToRemove;
-	InstanceIndicesToRemove.Reserve(InstanceIndexByGridPosition.Num());
-	for (const auto& [GridPosition, InstanceIndex] : InstanceIndexByGridPosition)
-	{
-		if (!DesiredGridPositions.Contains(GridPosition))
-		{
-			InstanceIndicesToRemove.Add(InstanceIndex);
-		}
-	}
-
-	if (InstanceIndicesToRemove.IsEmpty())
-	{
-		return true;
-	}
-
-	// Remove highest indices first so each removal does not invalidate the remaining indices.
-	// The same order mirrors swap removal in GridPositionByInstanceIndex.
-	InstanceIndicesToRemove.Sort(TGreater<int32>());
-	if (!VoxelMesh->RemoveInstances(InstanceIndicesToRemove, true))
-	{
-		return false;
-	}
-
-	for (const int32 InstanceIndex : InstanceIndicesToRemove)
-	{
-		if (GridPositionByInstanceIndex.IsValidIndex(InstanceIndex))
-		{
-			GridPositionByInstanceIndex.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
-		}
-	}
-
-	RebuildInstanceIndexLookup();
-	return true;
-}
-
-void UVoxelInstanceRenderer::RebuildInstanceIndexLookup()
-{
-	InstanceIndexByGridPosition.Reset();
-	InstanceIndexByGridPosition.Reserve(GridPositionByInstanceIndex.Num());
-	for (int32 InstanceIndex = 0; InstanceIndex < GridPositionByInstanceIndex.Num(); ++InstanceIndex)
-	{
-		InstanceIndexByGridPosition.Add(GridPositionByInstanceIndex[InstanceIndex], InstanceIndex);
+	const auto AddedInstanceIds = VoxelMeshComponent->AddInstancesById(MakeCubeTransforms(GridPositionsToAdd));
+	for (int32 Index = 0; Index < AddedInstanceIds.Num(); ++Index) {
+		InstanceIdByGridPosition.Add(GridPositionsToAdd[Index], AddedInstanceIds[Index]);
 	}
 }
 
-void UVoxelInstanceRenderer::AddMissingInstances(const TSet<FIntVector>& DesiredGridPositions)
+const TArray<FTransform> UVoxelInstanceRenderer::MakeCubeTransforms(const TArray<FIntVector>& GridPositions) const
 {
 	TArray<FTransform> Transforms;
-	TArray<FIntVector> GridPositionsToAdd;
-	Transforms.Reserve(DesiredGridPositions.Num());
-	GridPositionsToAdd.Reserve(DesiredGridPositions.Num());
-
-	for (const FIntVector& GridPosition : DesiredGridPositions)
-	{
-		if (InstanceIndexByGridPosition.Contains(GridPosition))
-		{
-			continue;
-		}
-
-		GridPositionsToAdd.Add(GridPosition);
-		Transforms.Emplace(MakeCubeTransform(GridPosition));
-	}
-
-	if (Transforms.IsEmpty())
-	{
-		return;
-	}
-
-	const TArray<int32> NewInstanceIndices = VoxelMesh->AddInstances(Transforms, true, false, false);
-	GridPositionByInstanceIndex.SetNum(VoxelMesh->GetInstanceCount());
-
-	for (int32 Index = 0; Index < NewInstanceIndices.Num(); ++Index)
-	{
-		const int32 InstanceIndex = NewInstanceIndices[Index];
-		if (!GridPositionsToAdd.IsValidIndex(Index) || !GridPositionByInstanceIndex.IsValidIndex(InstanceIndex))
-		{
-			continue;
-		}
-
-		const FIntVector& GridPosition = GridPositionsToAdd[Index];
-		InstanceIndexByGridPosition.Add(GridPosition, InstanceIndex);
-		GridPositionByInstanceIndex[InstanceIndex] = GridPosition;
-	}
-}
-
-FTransform UVoxelInstanceRenderer::MakeCubeTransform(const FIntVector& GridPosition) const
-{
-	const FVector Location(
-		static_cast<double>(GridPosition.X) * VoxelSize,
-		static_cast<double>(GridPosition.Y) * VoxelSize,
-		static_cast<double>(GridPosition.Z) * VoxelSize);
 	const FVector Scale = FVector::OneVector * (VoxelSize / 100.0f);
+	for (const auto& GridPosition : GridPositions) {
+		const FVector Location(
+			static_cast<double>(GridPosition.X) * VoxelSize,
+			static_cast<double>(GridPosition.Y) * VoxelSize,
+			static_cast<double>(GridPosition.Z) * VoxelSize);
+		Transforms.Emplace(FRotator::ZeroRotator, Location, Scale);
+	}
 
-	return FTransform(FRotator::ZeroRotator, Location, Scale);
+	return Transforms;
 }

@@ -27,18 +27,14 @@ protected:
 private:
 	void CreateVoxelMesh();
 	bool IsReady() const;
-	bool RemoveObsoleteInstances(const TSet<FIntVector>& DesiredGridPositions);
-	void RebuildInstanceIndexLookup();
-	void AddMissingInstances(const TSet<FIntVector>& DesiredGridPositions);
-	FTransform MakeCubeTransform(const FIntVector& GridPosition) const;
+	const TArray<FTransform> MakeCubeTransforms(const TArray<FIntVector>& GridPositions) const;
 
 	UPROPERTY(Transient)
-	TObjectPtr<UInstancedStaticMeshComponent> VoxelMesh;
+	TObjectPtr<UInstancedStaticMeshComponent> VoxelMeshComponent;
 
 	UPROPERTY()
 	TObjectPtr<UStaticMesh> CubeMesh;
 
 	float VoxelSize = 100.0f;
-	TMap<FIntVector, int32> InstanceIndexByGridPosition;
-	TArray<FIntVector> GridPositionByInstanceIndex;
+	TMap<FIntVector, FPrimitiveInstanceId> InstanceIdByGridPosition;
 };
