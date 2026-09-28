@@ -14,6 +14,7 @@
 #include "InputActionValue.h"
 #include "InputMappingContext.h"
 #include "Kismet/GameplayStatics.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 // Sets default values
 APlayerPawn::APlayerPawn()
@@ -36,6 +37,8 @@ UPawnMovementComponent* APlayerPawn::GetMovementComponent() const
 // Called when the game starts or when spawned
 void APlayerPawn::BeginPlay()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(APlayerPawn_BeginPlay);
+
 	Super::BeginPlay();
 
 	if (!VoxelTerrain)
@@ -47,6 +50,8 @@ void APlayerPawn::BeginPlay()
 // Called to bind functionality to input
 void APlayerPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(APlayerPawn_SetupPlayerInputComponent);
+
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
 	UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
@@ -91,6 +96,8 @@ float APlayerPawn::GetMiningProgress() const
 
 void APlayerPawn::Move(const FInputActionValue& Value)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(APlayerPawn_Move);
+
 	const FVector MoveValue = Value.Get<FVector>();
 
 	if (const AController* PlayerController = GetController())
@@ -113,6 +120,8 @@ void APlayerPawn::Move(const FInputActionValue& Value)
 
 void APlayerPawn::Look(const FInputActionValue& Value)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(APlayerPawn_Look);
+
 	const FVector2D LookValue = Value.Get<FVector2D>();
 	AddControllerYawInput(LookValue.X * LookSensitivity);
 	AddControllerPitchInput(LookValue.Y * LookSensitivity);
@@ -120,6 +129,8 @@ void APlayerPawn::Look(const FInputActionValue& Value)
 
 bool APlayerPawn::GetInteractionRay(FVector& OutStart, FVector& OutEnd) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(APlayerPawn_GetInteractionRay);
+
 	const APlayerController* PlayerController = Cast<APlayerController>(GetController());
 	if (!PlayerController)
 	{
@@ -141,6 +152,8 @@ void APlayerPawn::ResetMining()
 
 void APlayerPawn::PossessedBy(AController* NewController)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(APlayerPawn_PossessedBy);
+
 	Super::PossessedBy(NewController);
 
 	APlayerController* PlayerController = Cast<APlayerController>(NewController);
@@ -167,6 +180,8 @@ void APlayerPawn::PossessedBy(AController* NewController)
 
 void APlayerPawn::AddCube()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(APlayerPawn_AddCube);
+
 	FVector TraceStart;
 	FVector TraceEnd;
 	if (!VoxelTerrain || !GetInteractionRay(TraceStart, TraceEnd))
@@ -186,6 +201,8 @@ void APlayerPawn::AddCube()
 
 void APlayerPawn::MineCube()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(APlayerPawn_MineCube);
+
 	FVector TraceStart;
 	FVector TraceEnd;
 	if (!VoxelTerrain || !GetInteractionRay(TraceStart, TraceEnd))

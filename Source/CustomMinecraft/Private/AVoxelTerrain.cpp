@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "HAL/IConsoleManager.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "String/LexFromString.h"
 #include "VoxelInstanceCollision.h"
 #include "VoxelInstanceRenderer.h"
@@ -129,6 +130,8 @@ AVoxelTerrain::AVoxelTerrain()
 // Called when the game starts or when spawned
 void AVoxelTerrain::BeginPlay()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_BeginPlay);
+
 	Super::BeginPlay();
 
 	if (!ValidateCubeDefinitions()) 
@@ -172,6 +175,8 @@ bool AVoxelTerrain::ValidateCubeDefinitions() const
 
 void AVoxelTerrain::InitializeVoxelInstances()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_InitializeVoxelInstances);
+
 	VoxelInstanceManagers.Reset();
 	const TArray<FName> RowNames = CubeDefinitions->GetRowNames();
 
@@ -203,6 +208,8 @@ void AVoxelTerrain::InitializeVoxelInstances()
 
 void AVoxelTerrain::FillCubeTypesByLayer()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_FillCubeTypesByLayer);
+
 	CubeTypesByLayer.Reset();
 
 	for (const FName RowName : CubeDefinitions->GetRowNames())
@@ -220,6 +227,8 @@ void AVoxelTerrain::FillCubeTypesByLayer()
 
 void AVoxelTerrain::GenerateTerrain()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_GenerateTerrain);
+
 	ApplySeed();
 	RenderWorld();
 	VoxelCollision->Refresh();
@@ -227,6 +236,8 @@ void AVoxelTerrain::GenerateTerrain()
 
 void AVoxelTerrain::GenerateArea(const FIntRect& Area)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_GenerateArea);
+
 	for (int WorldX = Area.Min.X; WorldX < Area.Max.X; ++WorldX)
 	{
 		for (int WorldY = Area.Min.Y; WorldY < Area.Max.Y; ++WorldY)
@@ -243,6 +254,8 @@ void AVoxelTerrain::GenerateArea(const FIntRect& Area)
 
 void AVoxelTerrain::SetPlayerPosition(const FVector& Pos)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_SetPlayerPosition);
+
 	const FVector LocalPosition = GetActorTransform().InverseTransformPosition(Pos) / VoxelSize;
 	const FIntPoint NewGridPosition(FMath::FloorToInt(LocalPosition.X + 0.5), FMath::FloorToInt(LocalPosition.Y + 0.5));
 	if (!WorldData.IsInSameRegion(PlayerGridPosition, NewGridPosition))
@@ -255,6 +268,8 @@ void AVoxelTerrain::SetPlayerPosition(const FVector& Pos)
 
 void AVoxelTerrain::ApplySeed()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_ApplySeed);
+
 	const double Range = 100000.0;
 
 	if (Seed == 0)
@@ -280,6 +295,8 @@ int AVoxelTerrain::GetHeight(const int X, const int Y) const
 
 FVector AVoxelTerrain::GetLocationAboveSurface(const int32 GridX, const int32 GridY) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_GetLocationAboveSurface);
+
 	if (WorldData.IsEmpty())
 	{
 		return FVector::ZeroVector;
@@ -319,6 +336,8 @@ FName AVoxelTerrain::GetCubeTypeByHeight(int32 height)
 
 void AVoxelTerrain::RenderWorld()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_RenderWorld);
+
 	WorldData.EnsureAreaAround(	PlayerGridPosition,	RenderDistanceInChunks, 
 								[this](const FIntRect& Area) { GenerateArea(Area); });
 
@@ -333,6 +352,8 @@ void AVoxelTerrain::RenderWorld()
 
 bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_AddCube);
+
 	if (WorldData.IsEmpty() || VoxelInstanceManagers.IsEmpty() || !CubeDefinitions)
 	{
 		return false;
@@ -351,6 +372,8 @@ bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 
 bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_RemoveCube);
+
 	if (WorldData.IsEmpty() || VoxelInstanceManagers.IsEmpty() || !CanRemoveCube(GridPosition))
 	{
 		return false;
@@ -393,6 +416,8 @@ float AVoxelTerrain::GetMiningDuration(const FName Type)
 
 TOptional<FVoxelHit> AVoxelTerrain::TraceVoxel(const FVector& Start, const FVector& End) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_TraceVoxel);
+
 	if (WorldData.IsEmpty() || VoxelSize <= 0.0f)
 	{
 		return {};
@@ -411,6 +436,8 @@ FIntVector AVoxelTerrain::CalculateVoxelHitNormal(const FIntVector& PreviousGrid
 
 TOptional<FVoxelHit> AVoxelTerrain::TraceVoxelGridDDA(const FVector& GridStart, const FVector& GridEnd) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_TraceVoxelGridDDA);
+
 	// Delta represents the entire ray segment in grid space. The ray parameter ranges from 0 to 1.
 	const FVector Delta = GridEnd - GridStart;
 

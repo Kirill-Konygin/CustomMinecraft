@@ -1,5 +1,7 @@
 #include "VoxelWorldData.h"
 
+#include "ProfilingDebugging/CpuProfilerTrace.h"
+
 void FVoxelWorldData::Initialize(const FIntVector& InRegionSize)
 {
 	check(InRegionSize.X > 0 && InRegionSize.Y > 0 && InRegionSize.Z > 0);
@@ -20,6 +22,8 @@ bool FVoxelWorldData::IsInSameRegion(const FIntPoint& FirstGridPosition, const F
 
 void FVoxelWorldData::EnsureAreaAround(const FIntPoint& CenterGridPosition, const int32 Radius, const FAreaGenerator GenerateArea)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FVoxelWorldData_EnsureAreaAround);
+
 	check(Radius >= 0);
 
 	const FIntPoint CenterRegionPosition = GetRegionPosition(CenterGridPosition);
@@ -44,6 +48,8 @@ void FVoxelWorldData::EnsureAreaAround(const FIntPoint& CenterGridPosition, cons
 
 TArray<FIntVector> FVoxelWorldData::GetVoxelPositionsAround(const FName CubeId, const FIntPoint& CenterGridPosition, const int32 Radius) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FVoxelWorldData_GetVoxelPositionsAround);
+
 	check(Radius >= 0);
 
 	TArray<FIntVector> Positions;
@@ -99,6 +105,8 @@ bool FVoxelWorldData::RemoveVoxel(const FIntVector& GridPosition)
 
 TOptional<int32> FVoxelWorldData::FindSurfaceZ(const FIntPoint& GridPosition) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FVoxelWorldData_FindSurfaceZ);
+
 	const FChunk* Region = FindRegion(GetRegionPosition(GridPosition));
 	if (!Region)
 	{

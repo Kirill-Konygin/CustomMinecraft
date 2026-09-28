@@ -5,6 +5,7 @@
 #include "Components/SceneComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "GameFramework/Actor.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 UVoxelInstanceCollision::UVoxelInstanceCollision()
 {
@@ -30,6 +31,8 @@ void UVoxelInstanceCollision::Refresh()
 
 bool UVoxelInstanceCollision::DoesCubeOverlapSphere(const FIntVector& GridPosition, const FVector& SphereCenter, const float SphereRadius) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceCollision_DoesCubeOverlapSphere);
+
 	const AActor* Owner = GetOwner();
 	const USceneComponent* RootComponent = Owner ? Owner->GetRootComponent() : nullptr;
 	if (!RootComponent || VoxelSize <= 0.0f)
@@ -49,6 +52,8 @@ bool UVoxelInstanceCollision::DoesCubeOverlapSphere(const FIntVector& GridPositi
 
 void UVoxelInstanceCollision::UpdateCollisionBoxes(const bool bForce)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceCollision_UpdateCollisionBoxes);
+
 	const AVoxelTerrain* Terrain = Cast<AVoxelTerrain>(GetOwner());
 	if (!Terrain || VoxelSize <= 0.0f)
 	{
@@ -70,6 +75,8 @@ TArray<FIntVector> UVoxelInstanceCollision::GetCollisionGridPositions(
 	const AVoxelTerrain& Terrain,
 	const FIntVector& CenterPosition) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceCollision_GetCollisionGridPositions);
+
 	TArray<FIntVector> CollisionGridPositions;
 	CollisionGridPositions.Reserve((2 * RadiusXY + 1) * (2 * RadiusXY + 1) * (2 * RadiusZ + 1));
 
@@ -93,6 +100,8 @@ TArray<FIntVector> UVoxelInstanceCollision::GetCollisionGridPositions(
 
 void UVoxelInstanceCollision::SetCubes(const TConstArrayView<FIntVector> GridPositions)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceCollision_SetCubes);
+
 	if (!IsRegistered())
 	{
 		return;
@@ -111,6 +120,8 @@ void UVoxelInstanceCollision::SetCubes(const TConstArrayView<FIntVector> GridPos
 
 void UVoxelInstanceCollision::RemoveObsoleteCollisionBoxes(const TSet<FIntVector>& DesiredGridPositions)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceCollision_RemoveObsoleteCollisionBoxes);
+
 	TArray<FIntVector> GridPositionsToRemove;
 	GridPositionsToRemove.Reserve(CollisionBoxesByGridPosition.Num());
 	for (const auto& CollisionBoxPair : CollisionBoxesByGridPosition)
@@ -131,6 +142,8 @@ void UVoxelInstanceCollision::RemoveObsoleteCollisionBoxes(const TSet<FIntVector
 
 void UVoxelInstanceCollision::AddMissingCollisionBoxes(const TSet<FIntVector>& DesiredGridPositions)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceCollision_AddMissingCollisionBoxes);
+
 	for (const FIntVector& GridPosition : DesiredGridPositions)
 	{
 		if (CollisionBoxesByGridPosition.Contains(GridPosition))
@@ -154,6 +167,8 @@ void UVoxelInstanceCollision::AddMissingCollisionBoxes(const TSet<FIntVector>& D
 
 void UVoxelInstanceCollision::OnComponentDestroyed(const bool bDestroyingHierarchy)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceCollision_OnComponentDestroyed);
+
 	for (const auto& CollisionBoxPair : CollisionBoxesByGridPosition)
 	{
 		if (CollisionBoxPair.Value && !CollisionBoxPair.Value->IsBeingDestroyed())
@@ -177,6 +192,8 @@ void UVoxelInstanceCollision::OnComponentDestroyed(const bool bDestroyingHierarc
 
 UBoxComponent* UVoxelInstanceCollision::AcquireCollisionBox()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceCollision_AcquireCollisionBox);
+
 	if (!AvailableCollisionBoxes.IsEmpty())
 	{
 		return AvailableCollisionBoxes.Pop(EAllowShrinking::No);
@@ -203,6 +220,8 @@ UBoxComponent* UVoxelInstanceCollision::AcquireCollisionBox()
 
 void UVoxelInstanceCollision::ReleaseCollisionBox(UBoxComponent* CollisionBox)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceCollision_ReleaseCollisionBox);
+
 	if (!CollisionBox)
 	{
 		return;

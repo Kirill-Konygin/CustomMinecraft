@@ -1,8 +1,12 @@
 #include "Chunk.h"
 
+#include "ProfilingDebugging/CpuProfilerTrace.h"
+
 FChunk::FChunk(const FIntVector& InSize)
 	: Size(InSize)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FChunk_Initialize);
+
 	check(Size.X > 0 && Size.Y > 0 && Size.Z > 0);
 	Voxels.Init(EmptyPaletteIndex, Size.X * Size.Y * Size.Z);
 }
@@ -71,6 +75,8 @@ bool FChunk::RemoveVoxel(const FIntVector& LocalPosition)
 
 TArray<FIntVector> FChunk::GetVoxelLocalPositions(const FName CubeId) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FChunk_GetVoxelLocalPositions);
+
 	TArray<FIntVector> LocalPositions;
 	const FPaletteIndex* PaletteIndex = PaletteIndexByCubeId.Find(CubeId);
 	if (!PaletteIndex)

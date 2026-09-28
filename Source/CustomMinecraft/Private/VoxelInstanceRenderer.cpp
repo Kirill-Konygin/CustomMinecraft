@@ -5,6 +5,7 @@
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/Actor.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "UObject/ConstructorHelpers.h"
 
 UVoxelInstanceRenderer::UVoxelInstanceRenderer()
@@ -20,6 +21,8 @@ UVoxelInstanceRenderer::UVoxelInstanceRenderer()
 
 void UVoxelInstanceRenderer::Initialize(const FCubeDefinition& InCubeDefinition, const float InVoxelSize)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_Initialize);
+
 	check(InVoxelSize > 0.0f);
 	VoxelSize = InVoxelSize;
 	CreateVoxelMesh();
@@ -32,6 +35,8 @@ void UVoxelInstanceRenderer::Initialize(const FCubeDefinition& InCubeDefinition,
 
 void UVoxelInstanceRenderer::OnRegister()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_OnRegister);
+
 	Super::OnRegister();
 	CreateVoxelMesh();
 
@@ -51,6 +56,8 @@ void UVoxelInstanceRenderer::OnRegister()
 
 void UVoxelInstanceRenderer::OnUnregister()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_OnUnregister);
+
 	if (VoxelMeshComponent && VoxelMeshComponent->IsRegistered())
 	{
 		VoxelMeshComponent->UnregisterComponent();
@@ -61,6 +68,8 @@ void UVoxelInstanceRenderer::OnUnregister()
 
 void UVoxelInstanceRenderer::OnComponentDestroyed(const bool bDestroyingHierarchy)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_OnComponentDestroyed);
+
 	if (VoxelMeshComponent && !VoxelMeshComponent->IsBeingDestroyed())
 	{
 		VoxelMeshComponent->DestroyComponent();
@@ -72,6 +81,8 @@ void UVoxelInstanceRenderer::OnComponentDestroyed(const bool bDestroyingHierarch
 
 void UVoxelInstanceRenderer::CreateVoxelMesh()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_CreateVoxelMesh);
+
 	if (VoxelMeshComponent && VoxelMeshComponent->IsBeingDestroyed())
 	{
 		VoxelMeshComponent = nullptr;
@@ -109,37 +120,55 @@ bool UVoxelInstanceRenderer::IsReady() const
 
 void UVoxelInstanceRenderer::SetCubes(const TConstArrayView<FIntVector> GridPositions)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(SetCubes);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_SetCubes);
+
 	if (!IsReady())
 	{
 		return;
 	}
 
-	TSet<FIntVector> DesiredGridPositions(GridPositions);
-	TSet<FIntVector> CurrentGridPositions;
-	CurrentGridPositions.Reserve(InstanceIdByGridPosition.Num());
-	InstanceIdByGridPosition.GetKeys(CurrentGridPositions);
+	TSet<FIntVector> GridPositionsToRemove;
+	TArray<FIntVector> GridPositionsToAdd;
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_SetCubes_Diff);
 
-	TArray<FPrimitiveInstanceId> InstanceIdsToRemove;
-	
-	const TSet<FIntVector> GridPositionsToRemove = CurrentGridPositions.Difference(DesiredGridPositions);
-	const TArray<FIntVector> GridPositionsToAdd = DesiredGridPositions.Difference(CurrentGridPositions).Array();
+		TSet<FIntVector> DesiredGridPositions(GridPositions);
+		TSet<FIntVector> CurrentGridPositions;
+		CurrentGridPositions.Reserve(InstanceIdByGridPosition.Num());
+		InstanceIdByGridPosition.GetKeys(CurrentGridPositions);
 
-	InstanceIdsToRemove.Reserve(GridPositionsToRemove.Num());
-	for (const auto& GridPosition : GridPositionsToRemove) {
-		InstanceIdsToRemove.Add(InstanceIdByGridPosition.FindRef(GridPosition));
-		InstanceIdByGridPosition.Remove(GridPosition);
+		GridPositionsToRemove = CurrentGridPositions.Difference(DesiredGridPositions);
+		GridPositionsToAdd = DesiredGridPositions.Difference(CurrentGridPositions).Array();
 	}
-	VoxelMeshComponent->RemoveInstancesById(InstanceIdsToRemove);
 
-	const auto AddedInstanceIds = VoxelMeshComponent->AddInstancesById(MakeCubeTransforms(GridPositionsToAdd));
-	for (int32 Index = 0; Index < AddedInstanceIds.Num(); ++Index) {
-		InstanceIdByGridPosition.Add(GridPositionsToAdd[Index], AddedInstanceIds[Index]);
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_SetCubes_RemoveInstances);
+
+		TArray<FPrimitiveInstanceId> InstanceIdsToRemove;
+		InstanceIdsToRemove.Reserve(GridPositionsToRemove.Num());
+		for (const auto& GridPosition : GridPositionsToRemove)
+		{
+			InstanceIdsToRemove.Add(InstanceIdByGridPosition.FindRef(GridPosition));
+			InstanceIdByGridPosition.Remove(GridPosition);
+		}
+		VoxelMeshComponent->RemoveInstancesById(InstanceIdsToRemove);
+	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_SetCubes_AddInstances);
+
+		const auto AddedInstanceIds = VoxelMeshComponent->AddInstancesById(MakeCubeTransforms(GridPositionsToAdd));
+		for (int32 Index = 0; Index < AddedInstanceIds.Num(); ++Index)
+		{
+			InstanceIdByGridPosition.Add(GridPositionsToAdd[Index], AddedInstanceIds[Index]);
+		}
 	}
 }
 
 const TArray<FTransform> UVoxelInstanceRenderer::MakeCubeTransforms(const TArray<FIntVector>& GridPositions) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_MakeCubeTransforms);
+
 	TArray<FTransform> Transforms;
 	const FVector Scale = FVector::OneVector * (VoxelSize / 100.0f);
 	for (const auto& GridPosition : GridPositions) {
