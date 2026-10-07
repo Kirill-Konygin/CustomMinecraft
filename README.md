@@ -27,9 +27,9 @@ A small first-person voxel sandbox built in Unreal Engine 5.8.
 
 - `FChunk` stores voxel data using a per-chunk palette.
 - `FVoxelWorldData` reads and writes voxel data, keeping chunk storage private. Empty storage remains cached.
-- `FVoxelVisibility` keeps the current display area, caches exposed voxels across chunk boundaries, and provides surface queries using existing world data.
+- `FVoxelVisibility` keeps the current display area, caches exposed voxels across chunk boundaries, and provides additions and removals for the latest area or voxel update. It only reads existing world data.
 - `AVoxelTerrain` calculates display bounds, generates missing areas before rendering, and updates visibility after world changes. Empty terrain does not allocate chunk storage.
-- `UVoxelInstanceRenderer` renders cubes with instanced static meshes.
+- `UVoxelInstanceRenderer` adds and removes cubes in batches using stable instanced static mesh IDs.
 - `UVoxelInstanceCollision` maintains a pool of collision boxes near the player.
 - `APlayerPawn` handles movement, mining, and cube placement.
 

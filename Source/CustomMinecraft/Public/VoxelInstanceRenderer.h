@@ -17,7 +17,8 @@ public:
 	UVoxelInstanceRenderer();
 
 	void Initialize(const FCubeDefinition& InCubeDefinition, float InVoxelSize);
-	void SetCubes(TConstArrayView<FIntVector> GridPositions);
+	void AddCubes(TConstArrayView<FIntVector> GridPositions);
+	void RemoveCubes(TConstArrayView<FIntVector> GridPositions);
 
 protected:
 	virtual void OnRegister() override;

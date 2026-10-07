@@ -377,9 +377,11 @@ void AVoxelTerrain::RenderWorld()
 
 	for (const auto& [Name, ManagerPtr] : VoxelInstanceManagers)
 	{
-		if (ManagerPtr)
+		const FVoxelVisibilityChanges* CubeChanges = VoxelVisibility.GetChanges(Name);
+		if (ManagerPtr && CubeChanges)
 		{
-			ManagerPtr->SetCubes(VoxelVisibility.GetVoxelPositions(Name));
+			ManagerPtr->RemoveCubes(CubeChanges->Removed);
+			ManagerPtr->AddCubes(CubeChanges->Added);
 		}
 	}
 }

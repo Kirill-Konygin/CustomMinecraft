@@ -118,50 +118,61 @@ bool UVoxelInstanceRenderer::IsReady() const
 	return VoxelMeshComponent && VoxelMeshComponent->GetStaticMesh();
 }
 
-void UVoxelInstanceRenderer::SetCubes(const TConstArrayView<FIntVector> GridPositions)
+void UVoxelInstanceRenderer::AddCubes(const TConstArrayView<FIntVector> GridPositions)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_SetCubes);
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_AddCubes);
 
-	if (!IsReady())
+	if (!IsReady() || GridPositions.IsEmpty())
 	{
 		return;
 	}
 
-	TSet<FIntVector> GridPositionsToRemove;
-	TArray<FIntVector> GridPositionsToAdd;
+	TSet<FIntVector> NewGridPositions;
+	NewGridPositions.Reserve(GridPositions.Num());
+	for (const FIntVector& GridPosition : GridPositions)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_SetCubes_Diff);
-
-		TSet<FIntVector> DesiredGridPositions(GridPositions);
-		TSet<FIntVector> CurrentGridPositions;
-		CurrentGridPositions.Reserve(InstanceIdByGridPosition.Num());
-		InstanceIdByGridPosition.GetKeys(CurrentGridPositions);
-
-		GridPositionsToRemove = CurrentGridPositions.Difference(DesiredGridPositions);
-		GridPositionsToAdd = DesiredGridPositions.Difference(CurrentGridPositions).Array();
+		if (!InstanceIdByGridPosition.Contains(GridPosition))
+		{
+			NewGridPositions.Add(GridPosition);
+		}
 	}
 
+	if (NewGridPositions.IsEmpty())
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_SetCubes_RemoveInstances);
+		return;
+	}
 
-		TArray<FPrimitiveInstanceId> InstanceIdsToRemove;
-		InstanceIdsToRemove.Reserve(GridPositionsToRemove.Num());
-		for (const auto& GridPosition : GridPositionsToRemove)
+	const TArray<FIntVector> GridPositionsToAdd = NewGridPositions.Array();
+	const auto AddedInstanceIds = VoxelMeshComponent->AddInstancesById(MakeCubeTransforms(GridPositionsToAdd));
+	for (int32 Index = 0; Index < AddedInstanceIds.Num(); ++Index)
+	{
+		InstanceIdByGridPosition.Add(GridPositionsToAdd[Index], AddedInstanceIds[Index]);
+	}
+}
+
+void UVoxelInstanceRenderer::RemoveCubes(const TConstArrayView<FIntVector> GridPositions)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_RemoveCubes);
+
+	if (!IsReady() || GridPositions.IsEmpty())
+	{
+		return;
+	}
+
+	TArray<FPrimitiveInstanceId> InstanceIdsToRemove;
+	InstanceIdsToRemove.Reserve(GridPositions.Num());
+	for (const FIntVector& GridPosition : GridPositions)
+	{
+		FPrimitiveInstanceId InstanceId;
+		if (InstanceIdByGridPosition.RemoveAndCopyValue(GridPosition, InstanceId))
 		{
-			InstanceIdsToRemove.Add(InstanceIdByGridPosition.FindRef(GridPosition));
-			InstanceIdByGridPosition.Remove(GridPosition);
+			InstanceIdsToRemove.Add(InstanceId);
 		}
+	}
+
+	if (!InstanceIdsToRemove.IsEmpty())
+	{
 		VoxelMeshComponent->RemoveInstancesById(InstanceIdsToRemove);
-	}
-
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(UVoxelInstanceRenderer_SetCubes_AddInstances);
-
-		const auto AddedInstanceIds = VoxelMeshComponent->AddInstancesById(MakeCubeTransforms(GridPositionsToAdd));
-		for (int32 Index = 0; Index < AddedInstanceIds.Num(); ++Index)
-		{
-			InstanceIdByGridPosition.Add(GridPositionsToAdd[Index], AddedInstanceIds[Index]);
-		}
 	}
 }
 

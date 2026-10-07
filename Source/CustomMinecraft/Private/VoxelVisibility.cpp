@@ -44,16 +44,41 @@ void FVoxelVisibility::UpdateArea(const FVoxelWorldData& WorldData, const FIntRe
 
 	check(Height >= 0);
 
+	ChangesByType.Reset();
+	const FIntRect PreviousArea = VisibleArea;
+	for (int32 X = PreviousArea.Min.X; X < PreviousArea.Max.X; ++X)
+	{
+		for (int32 Y = PreviousArea.Min.Y; Y < PreviousArea.Max.Y; ++Y)
+		{
+			const FIntPoint ColumnPosition(X, Y);
+			if (Area.Contains(ColumnPosition))
+			{
+				continue;
+			}
+
+			if (const TMap<int32, FName>* VisibleVoxels = VisibleVoxelsByColumn.Find(ColumnPosition))
+			{
+				for (const auto& [Z, Type] : *VisibleVoxels)
+				{
+					ChangesByType.FindOrAdd(Type).Removed.Add(FIntVector(X, Y, Z));
+				}
+			}
+		}
+	}
+
 	VisibleArea = Area;
 
 	for (int32 X = Area.Min.X; X < Area.Max.X; ++X)
 	{
 		for (int32 Y = Area.Min.Y; Y < Area.Max.Y; ++Y)
 		{
+			const FIntPoint ColumnPosition(X, Y);
+			const bool WasVisible = PreviousArea.Contains(ColumnPosition);
+
 			for (int32 Z = 0; Z < Height; ++Z)
 			{
 				const FIntVector GridPosition(X, Y, Z);
-				UpdateVoxel(WorldData, GridPosition);
+				UpdateVoxel(WorldData, GridPosition, WasVisible ? &ChangesByType : nullptr);
 
 				// Changed area boundaries can hide or expose adjacent voxels.
 				for (const FIntVector& NeighborOffset : NeighborOffsets)
@@ -65,6 +90,17 @@ void FVoxelVisibility::UpdateArea(const FVoxelWorldData& WorldData, const FIntRe
 					}
 				}
 			}
+
+			if (!WasVisible)
+			{
+				if (const TMap<int32, FName>* VisibleVoxels = VisibleVoxelsByColumn.Find(ColumnPosition))
+				{
+					for (const auto& [Z, Type] : *VisibleVoxels)
+					{
+						ChangesByType.FindOrAdd(Type).Added.Add(FIntVector(X, Y, Z));
+					}
+				}
+			}
 		}
 	}
 }
@@ -73,22 +109,43 @@ void FVoxelVisibility::UpdateVoxelAround(const FVoxelWorldData& WorldData, const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FVoxelVisibility_UpdateVoxelAround);
 
-	UpdateVoxel(WorldData, GridPosition);
+	ChangesByType.Reset();
+	UpdateVoxel(WorldData, GridPosition, &ChangesByType);
 	for (const FIntVector& NeighborOffset : NeighborOffsets)
 	{
-		UpdateVoxel(WorldData, GridPosition + NeighborOffset);
+		UpdateVoxel(WorldData, GridPosition + NeighborOffset, &ChangesByType);
 	}
 }
 
-void FVoxelVisibility::UpdateVoxel(const FVoxelWorldData& WorldData, const FIntVector& GridPosition)
+const FVoxelVisibilityChanges* FVoxelVisibility::GetChanges(const FName CubeId) const
+{
+	return ChangesByType.Find(CubeId);
+}
+
+void FVoxelVisibility::UpdateVoxel(const FVoxelWorldData& WorldData, const FIntVector& GridPosition, TMap<FName, FVoxelVisibilityChanges>* Changes)
 {
 	const FIntPoint ColumnPosition(GridPosition.X, GridPosition.Y);
+	TMap<int32, FName>* VisibleVoxels = VisibleVoxelsByColumn.Find(ColumnPosition);
+	const FName PreviousCubeId = VisibleVoxels ? VisibleVoxels->FindRef(GridPosition.Z) : NAME_None;
 	const TOptional<FName> CubeId = WorldData.GetVoxelType(GridPosition);
-	if (CubeId && HasAnyEmptyNeighbor(WorldData, GridPosition))
+	const FName VisibleCubeId = CubeId && HasAnyEmptyNeighbor(WorldData, GridPosition) ? *CubeId : NAME_None;
+	if (Changes && PreviousCubeId != VisibleCubeId && VisibleArea.Contains(ColumnPosition))
 	{
-		VisibleVoxelsByColumn.FindOrAdd(ColumnPosition).Add(GridPosition.Z, *CubeId);
+		if (!PreviousCubeId.IsNone())
+		{
+			Changes->FindOrAdd(PreviousCubeId).Removed.Add(GridPosition);
+		}
+		if (!VisibleCubeId.IsNone())
+		{
+			Changes->FindOrAdd(VisibleCubeId).Added.Add(GridPosition);
+		}
 	}
-	else if (TMap<int32, FName>* VisibleVoxels = VisibleVoxelsByColumn.Find(ColumnPosition))
+
+	if (!VisibleCubeId.IsNone())
+	{
+		VisibleVoxelsByColumn.FindOrAdd(ColumnPosition).Add(GridPosition.Z, VisibleCubeId);
+	}
+	else if (VisibleVoxels)
 	{
 		VisibleVoxels->Remove(GridPosition.Z);
 		if (VisibleVoxels->IsEmpty())
