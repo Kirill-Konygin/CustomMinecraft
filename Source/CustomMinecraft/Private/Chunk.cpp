@@ -86,7 +86,7 @@ TArray<FIntVector> FChunk::GetVoxelLocalPositions(const FName CubeId) const
 
 	for (int32 Index = 0; Index < Voxels.Num(); ++Index)
 	{
-		if (Voxels[Index] == *PaletteIndex && HasAnyEmptyNeighbor(Index))
+		if (Voxels[Index] == *PaletteIndex)
 		{
 			LocalPositions.Add(GetLocalPosition(Index));
 		}
@@ -111,33 +111,4 @@ FChunk::FPaletteIndex FChunk::FindOrAddPaletteIndex(const FName CubeId)
 	const FPaletteIndex NewIndex = static_cast<FPaletteIndex>(Palette.Add(CubeId));
 	PaletteIndexByCubeId.Add(CubeId, NewIndex);
 	return NewIndex;
-}
-
-bool FChunk::HasAnyEmptyNeighbor(int32 Index) const
-{
-	if (!Voxels.IsValidIndex(Index))
-	{
-		return false;
-	}
-
-	const FIntVector LocalPosition = GetLocalPosition(Index);
-	static const FIntVector NeighborOffsets[] =
-	{
-		FIntVector(1, 0, 0),
-		FIntVector(-1, 0, 0),
-		FIntVector(0, 1, 0),
-		FIntVector(0, -1, 0),
-		FIntVector(0, 0, 1),
-		FIntVector(0, 0, -1)
-	};
-
-	for (const FIntVector& NeighborOffset : NeighborOffsets)
-	{
-		if (GetVoxelPaletteIndex(LocalPosition + NeighborOffset) == EmptyPaletteIndex)
-		{
-			return true;
-		}
-	}
-
-	return false;
 }

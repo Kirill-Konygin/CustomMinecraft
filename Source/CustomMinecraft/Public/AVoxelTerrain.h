@@ -7,6 +7,7 @@
 #include "GameplayTagContainer.h"
 #include "VoxelInstanceRenderer.h"
 #include "VoxelWorldData.h"
+#include "VoxelVisibility.h"
 #include "AVoxelTerrain.generated.h"
 
 class UDataTable;
@@ -61,6 +62,8 @@ protected:
 
 	void GenerateTerrain();
 	void GenerateArea(const FIntRect& Area);
+	FIntPoint GetRegionPosition(const FIntPoint& GridPosition) const;
+	FIntRect GetAreaAround(const FIntPoint& CenterGridPosition, int32 Radius) const;
 
 	void ApplySeed();
 	void RenderWorld();
@@ -92,6 +95,7 @@ protected:
 	TMap<FGameplayTag, TArray<FName>> CubeTypesByLayer;
 
 	FVoxelWorldData WorldData;
+	FVoxelVisibility VoxelVisibility;
 
 	FIntPoint PlayerGridPosition = FIntPoint::ZeroValue;
 

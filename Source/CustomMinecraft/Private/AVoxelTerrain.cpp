@@ -230,6 +230,9 @@ void AVoxelTerrain::GenerateTerrain()
 	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_GenerateTerrain);
 
 	ApplySeed();
+	const FIntRect Area = GetAreaAround(PlayerGridPosition, RenderDistanceInChunks);
+	GenerateArea(Area);
+	VoxelVisibility.UpdateArea(WorldData, Area, SizeZ);
 	RenderWorld();
 	VoxelCollision->Refresh();
 }
@@ -238,18 +241,49 @@ void AVoxelTerrain::GenerateArea(const FIntRect& Area)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_GenerateArea);
 
-	for (int WorldX = Area.Min.X; WorldX < Area.Max.X; ++WorldX)
+	for (int32 X = Area.Min.X; X < Area.Max.X; X += ChunkSizeX)
 	{
-		for (int WorldY = Area.Min.Y; WorldY < Area.Max.Y; ++WorldY)
+		for (int32 Y = Area.Min.Y; Y < Area.Max.Y; Y += ChunkSizeY)
 		{
-			const int Height = FMath::Clamp(GetHeight(WorldX, WorldY), 0, SizeZ);
-
-			for (int Z = 0; Z < Height; ++Z)
+			if (WorldData.HasData(FIntVector(X, Y, 0)))
 			{
-				WorldData.SetVoxel(FIntVector(WorldX, WorldY, Z), GetCubeTypeByHeight(Z));
+				continue;
+			}
+
+			const FIntPoint AreaMin(X, Y);
+			const FIntRect GenerationArea(AreaMin, AreaMin + FIntPoint(ChunkSizeX, ChunkSizeY));
+
+			for (int WorldX = GenerationArea.Min.X; WorldX < GenerationArea.Max.X; ++WorldX)
+			{
+				for (int WorldY = GenerationArea.Min.Y; WorldY < GenerationArea.Max.Y; ++WorldY)
+				{
+					const int Height = FMath::Clamp(GetHeight(WorldX, WorldY), 0, SizeZ);
+
+					for (int Z = 0; Z < Height; ++Z)
+					{
+						WorldData.SetVoxel(FIntVector(WorldX, WorldY, Z), GetCubeTypeByHeight(Z));
+					}
+				}
 			}
 		}
 	}
+}
+
+FIntPoint AVoxelTerrain::GetRegionPosition(const FIntPoint& GridPosition) const
+{
+	return FIntPoint(
+		FMath::FloorToInt(static_cast<double>(GridPosition.X) / ChunkSizeX),
+		FMath::FloorToInt(static_cast<double>(GridPosition.Y) / ChunkSizeY));
+}
+
+FIntRect AVoxelTerrain::GetAreaAround(const FIntPoint& CenterGridPosition, const int32 Radius) const
+{
+	check(Radius >= 0);
+
+	const FIntPoint CenterRegionPosition = GetRegionPosition(CenterGridPosition);
+	const FIntPoint AreaMin((CenterRegionPosition.X - Radius) * ChunkSizeX, (CenterRegionPosition.Y - Radius) * ChunkSizeY);
+	const FIntPoint AreaMax((CenterRegionPosition.X + Radius + 1) * ChunkSizeX, (CenterRegionPosition.Y + Radius + 1) * ChunkSizeY);
+	return FIntRect(AreaMin, AreaMax);
 }
 
 void AVoxelTerrain::SetPlayerPosition(const FVector& Pos)
@@ -258,9 +292,12 @@ void AVoxelTerrain::SetPlayerPosition(const FVector& Pos)
 
 	const FVector LocalPosition = GetActorTransform().InverseTransformPosition(Pos) / VoxelSize;
 	const FIntPoint NewGridPosition(FMath::FloorToInt(LocalPosition.X + 0.5), FMath::FloorToInt(LocalPosition.Y + 0.5));
-	if (!WorldData.IsInSameRegion(PlayerGridPosition, NewGridPosition))
+	if (GetRegionPosition(PlayerGridPosition) != GetRegionPosition(NewGridPosition))
 	{
 		PlayerGridPosition = NewGridPosition;
+		const FIntRect Area = GetAreaAround(PlayerGridPosition, RenderDistanceInChunks);
+		GenerateArea(Area);
+		VoxelVisibility.UpdateArea(WorldData, Area, SizeZ);
 		RenderWorld();
 	}
 	VoxelCollision->SetPlayerPosition(Pos);
@@ -302,7 +339,7 @@ FVector AVoxelTerrain::GetLocationAboveSurface(const int32 GridX, const int32 Gr
 		return FVector::ZeroVector;
 	}
 
-	const TOptional<int32> SurfaceZ = WorldData.FindSurfaceZ(FIntPoint(GridX, GridY));
+	const TOptional<int32> SurfaceZ = VoxelVisibility.FindSurfaceZ(FIntPoint(GridX, GridY));
 	if (!SurfaceZ)
 	{
 		return FVector::ZeroVector;
@@ -338,14 +375,11 @@ void AVoxelTerrain::RenderWorld()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_RenderWorld);
 
-	WorldData.EnsureAreaAround(	PlayerGridPosition,	RenderDistanceInChunks, 
-								[this](const FIntRect& Area) { GenerateArea(Area); });
-
 	for (const auto& [Name, ManagerPtr] : VoxelInstanceManagers)
 	{
 		if (ManagerPtr)
 		{
-			ManagerPtr->SetCubes(WorldData.GetVoxelPositionsAround(Name, PlayerGridPosition, RenderDistanceInChunks));
+			ManagerPtr->SetCubes(VoxelVisibility.GetVoxelPositions(Name));
 		}
 	}
 }
@@ -354,7 +388,7 @@ bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(AVoxelTerrain_AddCube);
 
-	if (WorldData.IsEmpty() || VoxelInstanceManagers.IsEmpty() || !CubeDefinitions)
+	if (VoxelInstanceManagers.IsEmpty() || !CubeDefinitions || !WorldData.HasData(GridPosition))
 	{
 		return false;
 	}
@@ -365,6 +399,7 @@ bool AVoxelTerrain::AddCube(const FIntVector& GridPosition)
 		return false;
 	}
 
+	VoxelVisibility.UpdateVoxelAround(WorldData, GridPosition);
 	RenderWorld();
 	VoxelCollision->Refresh();
 	return true;
@@ -383,6 +418,7 @@ bool AVoxelTerrain::RemoveCube(const FIntVector& GridPosition)
 		return false;
 	}
 
+	VoxelVisibility.UpdateVoxelAround(WorldData, GridPosition);
 	RenderWorld();
 	VoxelCollision->Refresh();
 	return true;
