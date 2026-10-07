@@ -46,6 +46,11 @@ void FVoxelVisibility::UpdateArea(const FVoxelWorldData& WorldData, const FIntRe
 
 	ChangesByType.Reset();
 	const FIntRect PreviousArea = VisibleArea;
+	if (Area == PreviousArea)
+	{
+		return;
+	}
+
 	for (int32 X = PreviousArea.Min.X; X < PreviousArea.Max.X; ++X)
 	{
 		for (int32 Y = PreviousArea.Min.Y; Y < PreviousArea.Max.Y; ++Y)
@@ -74,19 +79,32 @@ void FVoxelVisibility::UpdateArea(const FVoxelWorldData& WorldData, const FIntRe
 		{
 			const FIntPoint ColumnPosition(X, Y);
 			const bool WasVisible = PreviousArea.Contains(ColumnPosition);
+			// Entering columns can hide voxels along the previous area's boundary.
+			const bool HasEnteringNeighbor =
+				(X == PreviousArea.Min.X && Area.Min.X < PreviousArea.Min.X) ||
+				(X == PreviousArea.Max.X - 1 && Area.Max.X > PreviousArea.Max.X) ||
+				(Y == PreviousArea.Min.Y && Area.Min.Y < PreviousArea.Min.Y) ||
+				(Y == PreviousArea.Max.Y - 1 && Area.Max.Y > PreviousArea.Max.Y);
+			if (WasVisible && !HasEnteringNeighbor)
+			{
+				continue;
+			}
 
 			for (int32 Z = 0; Z < Height; ++Z)
 			{
 				const FIntVector GridPosition(X, Y, Z);
 				UpdateVoxel(WorldData, GridPosition, WasVisible ? &ChangesByType : nullptr);
+			}
 
-				// Changed area boundaries can hide or expose adjacent voxels.
-				for (const FIntVector& NeighborOffset : NeighborOffsets)
+			// Refresh cached neighbors outside the view.
+			for (const FIntVector& NeighborOffset : NeighborOffsets)
+			{
+				const FIntPoint NeighborColumnPosition(X + NeighborOffset.X, Y + NeighborOffset.Y);
+				if (!Area.Contains(NeighborColumnPosition))
 				{
-					const FIntVector NeighborPosition = GridPosition + NeighborOffset;
-					if (!Area.Contains(FIntPoint(NeighborPosition.X, NeighborPosition.Y)))
+					for (int32 Z = 0; Z < Height; ++Z)
 					{
-						UpdateVoxel(WorldData, NeighborPosition);
+						UpdateVoxel(WorldData, FIntVector(NeighborColumnPosition.X, NeighborColumnPosition.Y, Z));
 					}
 				}
 			}
@@ -129,7 +147,12 @@ void FVoxelVisibility::UpdateVoxel(const FVoxelWorldData& WorldData, const FIntV
 	const FName PreviousCubeId = VisibleVoxels ? VisibleVoxels->FindRef(GridPosition.Z) : NAME_None;
 	const TOptional<FName> CubeId = WorldData.GetVoxelType(GridPosition);
 	const FName VisibleCubeId = CubeId && HasAnyEmptyNeighbor(WorldData, GridPosition) ? *CubeId : NAME_None;
-	if (Changes && PreviousCubeId != VisibleCubeId && VisibleArea.Contains(ColumnPosition))
+	if (PreviousCubeId == VisibleCubeId)
+	{
+		return;
+	}
+
+	if (Changes && VisibleArea.Contains(ColumnPosition))
 	{
 		if (!PreviousCubeId.IsNone())
 		{
